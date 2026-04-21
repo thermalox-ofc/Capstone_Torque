@@ -1,7 +1,0 @@
-ServiceEventKey,VehicleKey,CompanyKey,ServiceTypeKey,ServiceDate,OdometerAtService,NextServiceDueDate,NextServiceDueMileage,ServiceStatus,ServiceCost,VendorName
-401,101,1,301,2025-12-15,41000,2026-03-15,46000,Open,185,QuickFleet Lube
-402,102,1,302,2026-01-10,65000,2026-07-09,72000,Open,240,Metro Tire
-403,103,2,301,2025-12-20,77000,2026-03-20,82000,Open,190,QuickFleet Lube
-404,104,2,303,2026-02-01,25500,2026-07-31,35500,Open,420,BrakeWorks
-405,105,3,304,2025-04-01,104000,2026-04-01,119000,Open,610,FleetCheck
-406,106,3,301,2026-02-10,98000,2026-05-11,103000,Completed,175,QuickFleet Lube

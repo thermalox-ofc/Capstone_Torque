@@ -1,5 +1,0 @@
-ServiceTypeKey,ServiceTypeName,IntervalDays,IntervalMiles,Priority
-301,Oil Change,90,5000,High
-302,Tire Rotation,180,7000,Medium
-303,Brake Inspection,180,10000,High
-304,Annual Inspection,365,15000,High
