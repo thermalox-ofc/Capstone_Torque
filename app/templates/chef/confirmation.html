@@ -1,0 +1,63 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Booking Request Sent - ChefTable{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.chef_directory') }}">Chefs</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('main.chef_detail', slug=booking.chef.slug) }}">{{ booking.chef.display_name }}</a></li>
+<li class="breadcrumb-item active">Confirmation</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4 p-lg-5 text-center">
+                <div class="display-5 text-success mb-3"><i class="ti ti-circle-check"></i></div>
+                <p class="text-uppercase text-secondary fw-semibold small mb-1">Request received</p>
+                <h1 class="mb-3">Your chef booking inquiry is on its way.</h1>
+                <p class="lead text-secondary mb-4">
+                    {{ booking.chef.display_name }} has your event details for {{ booking.event_date.strftime('%B %d, %Y') }}
+                    and will follow up at {{ booking.client_email }}.
+                </p>
+                <div class="row g-3 text-start mb-4">
+                    <div class="col-md-6">
+                        <div class="chef-summary-card">
+                            <div class="text-secondary small">Occasion</div>
+                            <div class="fw-semibold">{{ booking.occasion }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chef-summary-card">
+                            <div class="text-secondary small">Guest count</div>
+                            <div class="fw-semibold">{{ booking.guest_count }} guests</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chef-summary-card">
+                            <div class="text-secondary small">Location</div>
+                            <div class="fw-semibold">{{ booking.event_location }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chef-summary-card">
+                            <div class="text-secondary small">Budget</div>
+                            <div class="fw-semibold">
+                                {% if booking.estimated_budget %}
+                                ${{ "%.0f"|format(booking.estimated_budget) }}
+                                {% else %}
+                                Flexible
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    <a href="{{ url_for('main.chef_detail', slug=booking.chef.slug) }}" class="btn btn-outline-primary">Back to chef profile</a>
+                    <a href="{{ url_for('main.chef_directory') }}" class="btn btn-dark">Browse more chefs</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

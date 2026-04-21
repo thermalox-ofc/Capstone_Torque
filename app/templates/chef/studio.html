@@ -1,0 +1,86 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Chef Studio - ChefTable{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Chef Studio</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div>
+        <p class="text-uppercase text-secondary fw-semibold small mb-1">Back office view</p>
+        <h1 class="mb-1">Chef Studio</h1>
+        <p class="text-secondary mb-0">A lightweight inbox for new booking requests and active chef profiles.</p>
+    </div>
+    <a href="{{ url_for('main.chef_directory') }}" class="btn btn-outline-primary">Public marketplace</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-3">Live chefs</h2>
+                <div class="d-flex flex-column gap-3">
+                    {% for chef in chefs %}
+                    <a href="{{ url_for('main.chef_detail', slug=chef.slug) }}" class="text-decoration-none">
+                        <div class="chef-summary-card">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="fw-semibold text-body">{{ chef.display_name }}</div>
+                                    <div class="text-secondary small">{{ chef.location }}</div>
+                                </div>
+                                <span class="badge bg-primary-lt">${{ chef.starting_price_display }}/guest</span>
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h4 mb-0">Incoming requests</h2>
+                    <span class="badge bg-dark-lt text-dark">{{ bookings|length }} total</span>
+                </div>
+                {% if bookings %}
+                <div class="table-responsive">
+                    <table class="table table-vcenter">
+                        <thead>
+                            <tr>
+                                <th>Client</th>
+                                <th>Chef</th>
+                                <th>Date</th>
+                                <th>Guests</th>
+                                <th>Occasion</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for booking in bookings %}
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">{{ booking.client_name }}</div>
+                                    <div class="text-secondary small">{{ booking.client_email }}</div>
+                                </td>
+                                <td>{{ booking.chef.display_name }}</td>
+                                <td>{{ booking.event_date.strftime('%b %d, %Y') }}</td>
+                                <td>{{ booking.guest_count }}</td>
+                                <td>{{ booking.occasion }}</td>
+                                <td><span class="badge bg-success-lt text-uppercase">{{ booking.status }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-secondary mb-0">No requests yet. Share the public marketplace link and the inquiries will appear here.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

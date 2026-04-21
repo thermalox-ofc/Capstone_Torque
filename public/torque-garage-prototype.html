@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Torque Garage | Auto Repair Shop Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="auth-locked">
+  <section class="login-shell" id="loginShell">
+    <div class="login-card">
+      <p class="eyebrow">Secure Access</p>
+      <h2>Sign in to TorqueGarage</h2>
+      <p>
+        Choose a role and sign in. Admins and operators manage the shop. Customers see only their own vehicles, work orders, and appointments.
+      </p>
+      <form id="loginForm" class="form-grid login-form">
+        <label>
+          Role
+          <select name="role" id="loginRole" required>
+            <option value="admin">Admin</option>
+            <option value="operator">Operator</option>
+            <option value="customer">Customer</option>
+          </select>
+        </label>
+        <label>
+          Email
+          <input name="email" type="email" placeholder="admin@icloud.com" required>
+        </label>
+        <label>
+          Password
+          <input name="password" type="password" placeholder="Enter password" required>
+        </label>
+        <button type="submit" class="primary-btn form-btn">Sign In</button>
+      </form>
+      <p id="loginMessage" class="login-message" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div>
+        <p class="eyebrow">Cloud-Based Vehicle Service Tracking and Diagnostics System</p>
+        <h1>Torque Garage</h1>
+        <p>A lightweight service operations hub for small repair shops.</p>
+      </div>
+
+      <div class="session-card">
+        <p class="eyebrow">Signed in as</p>
+        <strong id="sessionName">Guest</strong>
+        <p id="sessionRole">No active session</p>
+        <button type="button" id="logoutButton" class="secondary-btn">Log Out</button>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Primary">
+        <a href="#dashboard">Dashboard</a>
+        <a href="#customers" data-admin-role>Customers</a>
+        <a href="#vehicles" data-admin-only>Vehicles</a>
+        <a href="#inventory" data-admin-role>Inventory</a>
+        <a href="#customer-portal" data-customer-only>My Portal</a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <section class="hero" id="dashboard">
+        <div>
+          <p class="eyebrow" id="heroEyebrow">Auto Repair Shop Management MVP</p>
+          <h2 id="heroTitle">Run the front office and the service bay from one dashboard.</h2>
+          <p id="heroCopy">
+            This prototype supports local persistence, customer management, vehicle records, delete customer actions, and VIN validation.
+          </p>
+        </div>
+        <div class="hero-actions" data-admin-only>
+          <button type="button" class="primary-btn" data-action="seed">Reload Demo Data</button>
+          <button type="button" class="secondary-btn" data-action="clear">Clear Saved Data</button>
+        </div>
+      </section>
+
+      <section class="metrics-grid" aria-label="Overview metrics" data-admin-only>
+        <article class="metric-card">
+          <p>Active Customers</p>
+          <strong id="metricCustomers">0</strong>
+        </article>
+        <article class="metric-card">
+          <p>Vehicles Tracked</p>
+          <strong id="metricVehicles">0</strong>
+        </article>
+        <article class="metric-card">
+          <p>Open Work Orders</p>
+          <strong id="metricOpenOrders">0</strong>
+        </article>
+        <article class="metric-card">
+          <p>Low Stock Parts</p>
+          <strong id="metricLowStock">0</strong>
+        </article>
+      </section>
+
+      <section class="panel-grid forms-layout" data-admin-role>
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Search</p>
+            <h3>Find customers, vehicles, and work orders</h3>
+          </div>
+          <form id="searchForm" class="form-grid">
+            <label class="full-span">
+              Search
+              <input name="query" id="searchQueryField" type="search" placeholder="Search by customer, VIN, make, model, email, or work order service">
+            </label>
+          </form>
+          <div id="searchResults" class="stack-list"></div>
+        </article>
+      </section>
+
+      <section class="panel-grid forms-layout" data-customer-only id="customer-portal">
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Customer Portal</p>
+            <h3 id="portalTitle">My vehicles</h3>
+          </div>
+          <div id="customerSummary" class="stack-list"></div>
+          <form id="customerPasswordForm" class="form-grid">
+            <label>
+              Current Password
+              <input name="currentPassword" id="customerCurrentPassword" type="password" placeholder="Enter current password" required>
+            </label>
+            <label>
+              New Password
+              <input name="newPassword" id="customerNewPassword" type="password" placeholder="Enter new password" required>
+            </label>
+            <label class="full-span">
+              Confirm New Password
+              <input name="confirmPassword" id="customerConfirmPassword" type="password" placeholder="Confirm new password" required>
+            </label>
+            <p id="customerPasswordMessage" class="form-status full-span" aria-live="polite"></p>
+            <button type="submit" class="primary-btn form-btn">Change Password</button>
+          </form>
+          <div id="customerVehicleList" class="stack-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Add Vehicle</p>
+            <h3>Add your vehicle before booking</h3>
+          </div>
+          <form id="customerVehicleForm" class="form-grid" novalidate>
+            <label>
+              VIN
+              <input
+                name="vin"
+                id="customerVehicleVin"
+                type="text"
+                placeholder="1HGCM82633A123456"
+                maxlength="17"
+                pattern="[A-HJ-NPR-Z0-9]{17}"
+                required
+              >
+              <span id="customerVinValidationMessage" class="field-message" aria-live="polite"></span>
+            </label>
+            <label>
+              Year
+              <input name="year" id="customerVehicleYearField" type="number" min="1900" max="2099" placeholder="2020" required>
+            </label>
+            <label>
+              Make
+              <input name="make" id="customerVehicleMakeField" type="text" placeholder="Toyota" required>
+            </label>
+            <label>
+              Model
+              <input name="model" id="customerVehicleModelField" type="text" placeholder="Camry" required>
+            </label>
+            <label>
+              Mileage
+              <input name="mileage" id="customerVehicleMileageField" type="number" min="0" placeholder="42000" required>
+            </label>
+            <p id="customerVehicleFormMessage" class="form-status full-span" aria-live="polite"></p>
+            <button type="submit" class="primary-btn form-btn">Save My Vehicle</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Book Appointment</p>
+            <h3>Schedule your next visit</h3>
+          </div>
+          <form id="customerBookingForm" class="form-grid">
+            <label>
+              Vehicle
+              <select name="vehicleId" id="customerBookingVehicleSelect" required></select>
+            </label>
+            <label>
+              Service Type
+              <select name="serviceType" id="customerBookingServiceSelect" required></select>
+            </label>
+            <label>
+              Appointment Time
+              <input name="appointmentAt" id="customerAppointmentAt" type="datetime-local" required>
+            </label>
+            <label class="full-span">
+              Booking Note
+              <input name="bookingNote" id="customerBookingNote" type="text" placeholder="Need shuttle ride or waiting room seating.">
+            </label>
+            <p id="customerBookingMessage" class="form-status full-span" aria-live="polite"></p>
+            <button type="submit" class="primary-btn form-btn">Book Appointment</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Appointments</p>
+            <h3 id="customerAppointmentsTitle">View upcoming visits</h3>
+          </div>
+          <div id="customerAppointmentList" class="stack-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Maintenance Checklist</p>
+            <h3>Recommended next services</h3>
+          </div>
+          <div id="customerMaintenanceList" class="stack-list"></div>
+        </article>
+      </section>
+
+      <section class="panel-grid forms-layout" data-admin-only>
+        <article class="panel" id="customers" data-admin-role>
+          <div class="panel-heading">
+            <p class="eyebrow">Customers</p>
+            <h3>Add a customer profile</h3>
+          </div>
+          <form id="customerForm" class="form-grid">
+            <input type="hidden" name="id" id="customerIdField">
+            <label>
+              Full Name
+              <input name="name" id="customerNameField" type="text" placeholder="First Last" required>
+            </label>
+            <label>
+              Address
+              <input name="address" id="customerAddressField" type="text" placeholder="123 Main St, Atlanta, GA" required>
+            </label>
+            <label>
+              Phone
+              <input name="phone" id="customerPhoneField" type="tel" placeholder="111-0101" required>
+            </label>
+            <label>
+              Email
+              <input name="email" id="customerEmailField" type="email" placeholder="@email.com" required>
+            </label>
+            <label>
+              Loyalty Tier
+              <select name="loyaltyTier" id="customerLoyaltyField">
+                <option value="None">None</option>
+                <option value="Silver">Silver</option>
+                <option value="Gold">Gold</option>
+                <option value="Fleet">Fleet</option>
+              </select>
+            </label>
+            <p id="customerFormMessage" class="form-status full-span" aria-live="polite"></p>
+            <div class="full-span hero-actions">
+              <button type="submit" class="primary-btn" id="customerSubmitButton">Save Customer</button>
+              <button type="button" class="secondary-btn" id="customerCancelButton" hidden>Cancel Edit</button>
+            </div>
+          </form>
+          <div id="customerList" class="stack-list"></div>
+        </article>
+
+        <article class="panel" id="vehicles">
+          <div class="panel-heading">
+            <p class="eyebrow">Vehicles</p>
+            <h3 id="vehiclesTitle">Register a vehicle</h3>
+          </div>
+          <div data-admin-role>
+            <form id="vehicleForm" class="form-grid" novalidate>
+              <input type="hidden" name="id" id="vehicleIdField">
+              <label>
+                Customer
+                <select name="customerId" id="vehicleCustomerSelect" required></select>
+              </label>
+              <label>
+                VIN
+                <input
+                  name="vin"
+                  id="vehicleVin"
+                  type="text"
+                  placeholder="1HGCM82633A123456"
+                  maxlength="17"
+                  pattern="[A-HJ-NPR-Z0-9]{17}"
+                  title="VIN must be 17 characters and cannot include I, O, or Q."
+                  required
+                >
+                <span id="vinValidationMessage" class="field-message" aria-live="polite"></span>
+              </label>
+              <label>
+                Year
+                <input name="year" id="vehicleYearField" type="number" min="1900" max="2099" placeholder="2019" required>
+              </label>
+              <label>
+                Make
+                <input name="make" id="vehicleMakeField" type="text" placeholder="Honda" required>
+              </label>
+              <label>
+                Model
+                <input name="model" id="vehicleModelField" type="text" placeholder="Accord" required>
+              </label>
+              <label>
+                Mileage
+                <input name="mileage" id="vehicleMileageField" type="number" min="0" placeholder="64200" required>
+              </label>
+              <label>
+                Warranty
+                <input name="warranty" id="vehicleWarrantyField" type="text" placeholder="Powertrain until 80k miles">
+              </label>
+              <label class="full-span">
+                Diagnostic Codes
+                <input name="codes" id="vehicleCodesField" type="text" placeholder="P0420, P0302">
+              </label>
+              <p id="vehicleFormMessage" class="form-status full-span" aria-live="polite"></p>
+              <div class="full-span hero-actions">
+                <button type="submit" class="primary-btn" id="vehicleSubmitButton">Save Vehicle</button>
+                <button type="button" class="secondary-btn" id="vehicleCancelButton" hidden>Cancel Edit</button>
+              </div>
+            </form>
+          </div>
+          <div id="vehicleList" class="stack-list"></div>
+        </article>
+      </section>
+
+      <section class="panel-grid forms-layout" data-admin-role>
+        <article class="panel" id="inventory">
+          <div class="panel-heading">
+            <p class="eyebrow">Inventory Management</p>
+            <h3>Parts catalog and stock levels</h3>
+          </div>
+          <form id="inventoryForm" class="form-grid">
+            <input type="hidden" name="id" id="inventoryIdField">
+            <label>
+              Part Name
+              <input name="name" id="inventoryNameField" type="text" placeholder="Oil Filter" required>
+            </label>
+            <label>
+              SKU
+              <input name="sku" id="inventorySkuField" type="text" placeholder="OIL-118" required>
+            </label>
+            <label>
+              Quantity
+              <input name="quantity" id="inventoryQuantityField" type="number" min="0" placeholder="22" required>
+            </label>
+            <label>
+              Reorder Threshold
+              <input name="reorderPoint" id="inventoryReorderField" type="number" min="0" placeholder="10" required>
+            </label>
+            <label>
+              Unit Cost
+              <input name="price" id="inventoryPriceField" type="number" min="0" step="0.01" placeholder="11.50" required>
+            </label>
+            <p id="inventoryMessage" class="form-status full-span" aria-live="polite"></p>
+            <div class="full-span hero-actions">
+              <button type="submit" class="primary-btn" id="inventorySubmitButton">Save Part</button>
+              <button type="button" class="secondary-btn" id="inventoryCancelButton" hidden>Cancel Edit</button>
+            </div>
+          </form>
+          <div id="inventoryList" class="stack-list"></div>
+        </article>
+      </section>
+
+      <section class="panel-grid forms-layout" data-admin-role>
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Admin Status Board</p>
+            <h3>Ongoing, pickup, completed, inventory</h3>
+          </div>
+          <div id="adminStatusBoard" class="stack-list"></div>
+        </article>
+      </section>
+
+      <section class="panel-grid forms-layout" data-admin-only id="service-ops">
+        <article class="panel" data-admin-role>
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Appointment Queue</p>
+              <h3>Aappointment Update and Modify work order</h3>
+            </div>
+          </div>
+          <div id="appointmentQueueList" class="stack-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Operator Jobs</p>
+              <h3>Start work and send completed jobs to admin</h3>
+            </div>
+          </div>
+          <div id="operatorJobList" class="stack-list"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

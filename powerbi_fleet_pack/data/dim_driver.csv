@@ -1,0 +1,7 @@
+DriverKey,DriverName,EmployeeID,LicenseType,Status,CompanyKey
+201,Jamie Carter,EMP-1001,Class D,Active,1
+202,Alex Morgan,EMP-1002,Class C,Active,1
+203,Riley Brooks,EMP-2001,Class C,Active,2
+204,Taylor Reed,EMP-2002,Class D,Active,2
+205,Jordan Hayes,EMP-3001,Class A,Active,3
+206,Casey Bennett,EMP-3002,Class C,Inactive,3
