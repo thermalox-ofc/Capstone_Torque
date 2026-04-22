@@ -435,17 +435,58 @@
       }
     }
 
+    function clearLoggedOutUiState() {
+      elements.loginForm?.reset();
+      elements.loginMessage.textContent = "";
+
+      elements.customerForm?.reset();
+      elements.customerIdField.value = "";
+      elements.customerSubmitButton.textContent = "Save Customer";
+      elements.customerCancelButton.hidden = true;
+      clearFormMessage(elements.customerFormMessage);
+
+      elements.vehicleForm?.reset();
+      elements.vehicleIdField.value = "";
+      elements.vehicleSubmitButton.textContent = "Save Vehicle";
+      elements.vehicleCancelButton.hidden = true;
+      elements.vehicleMileageField.classList.remove("is-invalid");
+      clearVinError();
+      clearFormMessage(elements.vehicleFormMessage);
+
+      elements.customerVehicleForm?.reset();
+      elements.customerVehicleMileageField?.classList.remove("is-invalid");
+      elements.customerVehicleVin?.classList.remove("is-invalid");
+      clearFormMessage(elements.customerVehicleFormMessage);
+      if (elements.customerVinValidationMessage) {
+        elements.customerVinValidationMessage.textContent = "";
+      }
+
+      elements.customerBookingForm?.reset();
+      clearFormMessage(elements.customerBookingMessage);
+
+      elements.customerPasswordForm?.reset();
+      clearFormMessage(elements.customerPasswordMessage);
+
+      elements.adminBookingForm?.reset();
+      clearFormMessage(elements.adminBookingMessage);
+
+      elements.inventoryForm?.reset();
+      if (elements.inventoryIdField) {
+        elements.inventoryIdField.value = "";
+      }
+      if (elements.inventorySubmitButton) {
+        elements.inventorySubmitButton.textContent = "Save Part";
+      }
+      if (elements.inventoryCancelButton) {
+        elements.inventoryCancelButton.hidden = true;
+      }
+      clearFormMessage(elements.inventoryMessage);
+    }
+
     function expireSession() {
       auth = null;
       lastSessionPersistAt = 0;
       localStorage.removeItem(AUTH_KEY);
-      resetCustomerForm();
-      resetVehicleForm();
-      resetInventoryForm();
-      resetCustomerVehicleForm();
-      resetCustomerBookingForm();
-      resetCustomerPasswordForm();
-      resetAdminBookingForm();
     }
 
     // =============================
@@ -2661,6 +2702,7 @@
     elements.logoutButton.addEventListener("click", () => {
       expireSession();
       render();
+      window.setTimeout(clearLoggedOutUiState, 0);
     });
 
     elements.customerForm.addEventListener("submit", (event) => {
