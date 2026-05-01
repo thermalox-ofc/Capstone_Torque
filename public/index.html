@@ -449,8 +449,41 @@
         <article class="panel" data-admin-role>
           <div class="panel-heading">
             <div>
+              <p class="eyebrow">Admin Booking</p>
+              <h3>Book an appointment for a customer</h3>
+            </div>
+          </div>
+          <form id="adminBookingForm" class="form-grid">
+            <label>
+              Customer
+              <select name="customerId" id="adminBookingCustomerSelect" required></select>
+            </label>
+            <label>
+              Vehicle
+              <select name="vehicleId" id="adminBookingVehicleSelect" required></select>
+            </label>
+            <label>
+              Service Type
+              <select name="serviceType" id="adminBookingServiceSelect" required></select>
+            </label>
+            <label>
+              Appointment Time
+              <input name="appointmentAt" id="adminAppointmentAt" type="datetime-local" required>
+            </label>
+            <label class="full-span">
+              Booking Note
+              <input name="bookingNote" type="text" placeholder="Customer requested waiting room seating or drop-off instructions.">
+            </label>
+            <p id="adminBookingMessage" class="form-status full-span" aria-live="polite"></p>
+            <button type="submit" class="primary-btn form-btn">Book Appointment</button>
+          </form>
+        </article>
+
+        <article class="panel" data-admin-role>
+          <div class="panel-heading">
+            <div>
               <p class="eyebrow">Appointment Queue</p>
-              <h3>Aappointment Update and Modify work order</h3>
+              <h3>Appointment update and modify work order</h3>
             </div>
           </div>
           <div id="appointmentQueueList" class="stack-list"></div>
