@@ -142,6 +142,14 @@
           </form>
           <div id="searchResults" class="stack-list"></div>
         </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Admin Status Board</p>
+            <h3>Ongoing, pickup, completed, inventory</h3>
+          </div>
+          <div id="adminStatusBoard" class="stack-list"></div>
+        </article>
       </section>
 
       <!-- =============================
@@ -327,7 +335,9 @@
           </form>
           <div id="operatorList" class="stack-list"></div>
         </article>
+      </section>
 
+      <section class="panel-grid forms-layout" data-admin-only>
         <article class="panel" id="vehicles">
           <div class="panel-heading">
             <p class="eyebrow">Vehicles</p>
@@ -387,13 +397,7 @@
           </div>
           <div id="vehicleList" class="stack-list"></div>
         </article>
-      </section>
 
-      <!-- =============================
-           INVENTORY MANAGEMENT
-           Admin-only parts catalog, stock, and pricing.
-           ============================= -->
-      <section class="panel-grid forms-layout" data-admin-role>
         <article class="panel" id="inventory">
           <div class="panel-heading">
             <p class="eyebrow">Inventory Management</p>
@@ -428,16 +432,6 @@
             </div>
           </form>
           <div id="inventoryList" class="stack-list"></div>
-        </article>
-      </section>
-
-      <section class="panel-grid forms-layout" data-admin-role>
-        <article class="panel">
-          <div class="panel-heading">
-            <p class="eyebrow">Admin Status Board</p>
-            <h3>Ongoing, pickup, completed, inventory</h3>
-          </div>
-          <div id="adminStatusBoard" class="stack-list"></div>
         </article>
       </section>
 
