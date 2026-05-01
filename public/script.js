@@ -2960,6 +2960,7 @@
         renderOperatorJobs();
       }
       if (isAdminUser()) {
+        populateAdminBookingSelects();
         renderCustomers();
         renderOperators();
         renderWorkOrders();
