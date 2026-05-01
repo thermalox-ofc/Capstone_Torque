@@ -992,10 +992,22 @@
       if (nextFaults === null) return;
 
       const partsInput = window.prompt(
-        "Optional: add used parts as a comma-separated list matching inventory names.",
+        "Optional: add used parts as comma-separated SKU entries. Examples: 352777, 352777:2, M1-5W30-5QT:1",
         ""
       );
       if (partsInput === null) return;
+
+      const normalizedParts = partsInput
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      if (normalizedParts.length) {
+        const consumed = consumeInventoryForWorkOrder(workOrderId, normalizedParts);
+        if (!consumed) {
+          return;
+        }
+      }
 
       state.workOrders = state.workOrders.map((item) =>
         item.id === workOrderId
@@ -1017,16 +1029,7 @@
         );
       }
 
-      const normalizedParts = partsInput
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-
       if (normalizedParts.length) {
-        const consumed = consumeInventoryForWorkOrder(workOrderId, normalizedParts.join(", "));
-        if (!consumed) {
-          return;
-        }
         syncAppointmentInventorySummary(workOrder.appointmentId);
       }
 
@@ -1034,38 +1037,67 @@
       render();
     }
 
-    function consumeInventoryForWorkOrder(workOrderId, inventoryUsedInput) {
-      const itemNames = inventoryUsedInput
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+    function consumeInventoryForWorkOrder(workOrderId, skuEntries) {
+      const requestedParts = [];
 
-      const workOrderParts = [];
-      for (const itemName of itemNames) {
-        const matchedPart = state.inventory.find((part) => part.name.toLowerCase() === itemName.toLowerCase());
+      for (const skuEntry of skuEntries) {
+        const [rawSku, rawQuantity] = skuEntry.split(":").map((item) => item.trim());
+        const normalizedSku = String(rawSku || "").toUpperCase();
+        const quantity = rawQuantity ? Number(rawQuantity) : 1;
+
+        if (!normalizedSku) {
+          window.alert("Enter a valid SKU when logging used inventory.");
+          return false;
+        }
+
+        if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
+          window.alert(`Enter a valid whole-number quantity for SKU ${normalizedSku}.`);
+          return false;
+        }
+
+        const matchedPart = state.inventory.find((part) => String(part.sku || "").toUpperCase() === normalizedSku);
         if (!matchedPart) {
-          window.alert(`Inventory item "${itemName}" was not found in the catalog.`);
+          window.alert(`Inventory item with SKU "${normalizedSku}" was not found in the catalog.`);
           return false;
         }
-        if (matchedPart.quantity <= 0) {
-          window.alert(`Inventory item "${matchedPart.name}" is out of stock.`);
-          return false;
+
+        const existingRequest = requestedParts.find((item) => item.part.id === matchedPart.id);
+        if (existingRequest) {
+          existingRequest.quantity += quantity;
+        } else {
+          requestedParts.push({ part: matchedPart, quantity });
         }
-        workOrderParts.push({ part: matchedPart, quantity: 1 });
       }
 
-      workOrderParts.forEach(({ part, quantity }) => {
+      for (const { part, quantity } of requestedParts) {
+        if (part.quantity < quantity) {
+          window.alert(`Only ${part.quantity} of ${part.name} (SKU ${part.sku}) are available.`);
+          return false;
+        }
+      }
+
+      requestedParts.forEach(({ part, quantity }) => {
         state.inventory = state.inventory.map((inventoryPart) =>
           inventoryPart.id === part.id
             ? { ...inventoryPart, quantity: inventoryPart.quantity - quantity }
             : inventoryPart
         );
-        state.workOrderParts.push({
-          id: crypto.randomUUID(),
-          workOrderId,
-          partId: part.id,
-          quantity
-        });
+
+        const existingPartLink = state.workOrderParts.find((item) => item.workOrderId === workOrderId && item.partId === part.id);
+        if (existingPartLink) {
+          state.workOrderParts = state.workOrderParts.map((item) =>
+            item.workOrderId === workOrderId && item.partId === part.id
+              ? { ...item, quantity: item.quantity + quantity }
+              : item
+          );
+        } else {
+          state.workOrderParts.push({
+            id: crypto.randomUUID(),
+            workOrderId,
+            partId: part.id,
+            quantity
+          });
+        }
       });
 
       return true;
@@ -1081,7 +1113,7 @@
         .filter((item) => item.workOrderId === workOrder.id)
         .map((item) => {
           const part = state.inventory.find((inventoryPart) => inventoryPart.id === item.partId);
-          return part ? `${part.name} x${item.quantity}` : "";
+          return part ? `${part.name} (SKU ${part.sku}) x${item.quantity}` : "";
         })
         .filter(Boolean)
         .join(", ");
@@ -2726,7 +2758,7 @@
                 <span class="pill">${getDaysUntilAppointment(appointment.appointmentAt)}</span>
                 <span class="pill">${customerVisibleStatus}</span>
               </div>
-              <p>${isReady ? "Your vehicle is ready for pickup and payment." : isCompleted ? "Thank you for having business with us." : isPending ? "Your appointment request is waiting for admin approval." : isRejected ? "This request was not approved. Please review the note and book a new time if needed." : isAssigned ? "See you on your appointment." : "Your service request is in progress behind the scenes."}</p>
+              <p>${isReady ? "Your vehicle is ready for pickup and payment." : isCompleted ? "Your Vehicle is ready for pick up. Thank you for having business with us." : isPending ? "Your appointment request is waiting for admin approval." : isRejected ? "This request was not approved. Please review the note and book a new time if needed." : isAssigned ? "See you on your appointment." : "Your service request is in progress behind the scenes."}</p>
               <div class="list-actions">
                 ${canCancel ? `<button type="button" class="danger-btn" data-cancel-customer-appointment="${appointment.id}">Cancel Appointment</button>` : ""}
               </div>
