@@ -852,13 +852,58 @@
       );
     }
 
+    function appointmentBlocksBay(appointment) {
+      return [
+        APPOINTMENT_STATUS.ASSIGNED,
+        APPOINTMENT_STATUS.IN_PROGRESS,
+        APPOINTMENT_STATUS.WAITING_FOR_PARTS,
+        APPOINTMENT_STATUS.WAITING_FOR_APPROVAL,
+        APPOINTMENT_STATUS.ON_HOLD,
+        APPOINTMENT_STATUS.WORK_COMPLETED,
+        APPOINTMENT_STATUS.VERIFIED
+      ].includes(appointment.status);
+    }
+
+    function appointmentBlocksOperator(appointment) {
+      return [
+        APPOINTMENT_STATUS.ASSIGNED,
+        APPOINTMENT_STATUS.IN_PROGRESS,
+        APPOINTMENT_STATUS.WAITING_FOR_PARTS,
+        APPOINTMENT_STATUS.WAITING_FOR_APPROVAL,
+        APPOINTMENT_STATUS.ON_HOLD,
+        APPOINTMENT_STATUS.WORK_COMPLETED,
+        APPOINTMENT_STATUS.VERIFIED,
+        APPOINTMENT_STATUS.READY_FOR_PICKUP
+      ].includes(appointment.status);
+    }
+
     function isBayUnavailable(bay, appointmentAt, excludeAppointmentId = "") {
       return state.appointments.some((appointment) =>
         appointment.id !== excludeAppointmentId &&
-        [APPOINTMENT_STATUS.ASSIGNED, APPOINTMENT_STATUS.IN_PROGRESS, APPOINTMENT_STATUS.WAITING_FOR_PARTS, APPOINTMENT_STATUS.WAITING_FOR_APPROVAL, APPOINTMENT_STATUS.ON_HOLD].includes(appointment.status) &&
+        appointmentBlocksBay(appointment) &&
         appointment.bay === bay &&
         appointment.appointmentAt === appointmentAt
       );
+    }
+
+    function isOperatorDoubleBooked(operatorName, appointmentAt, excludeAppointmentId = "") {
+      return state.appointments.some((appointment) =>
+        appointment.id !== excludeAppointmentId &&
+        appointmentBlocksOperator(appointment) &&
+        appointment.assignedOperator === operatorName &&
+        appointment.appointmentAt === appointmentAt
+      );
+    }
+
+    function getAssignmentConflictSummary(appointment) {
+      const conflicts = [];
+      if (appointment.assignedOperator && isOperatorDoubleBooked(appointment.assignedOperator, appointment.appointmentAt, appointment.id)) {
+        conflicts.push(`${appointment.assignedOperator} is already booked at this time`);
+      }
+      if (appointment.bay && isBayUnavailable(appointment.bay, appointment.appointmentAt, appointment.id)) {
+        conflicts.push(`${appointment.bay} is already occupied at this time`);
+      }
+      return conflicts;
     }
 
     function isOperatorUser() {
@@ -893,6 +938,11 @@
       const profile = getTechnicianProfile(technicianName);
       if (!isTechnicianSkilledForService(technicianName, serviceType)) {
         window.alert(`${technicianName} is not assigned to that service type.`);
+        return false;
+      }
+      const appointment = state.appointments.find((item) => item.id === excludeAppointmentId);
+      if (appointment && isOperatorDoubleBooked(technicianName, appointment.appointmentAt, excludeAppointmentId)) {
+        window.alert(`${technicianName} already has another appointment scheduled at ${formatDate(appointment.appointmentAt)}.`);
         return false;
       }
       if (getTechnicianActiveJobs(technicianName, excludeAppointmentId).length >= profile.maxConcurrentJobs) {
@@ -1251,6 +1301,16 @@
         return;
       }
 
+      if (!isOnTheHour(parsedDate)) {
+        window.alert("Appointments must stay scheduled on the hour.");
+        return;
+      }
+
+      if (!isWithinBusinessHours(parsedDate)) {
+        window.alert("Appointments must stay within business hours.");
+        return;
+      }
+
       const nextIso = parsedDate.toISOString();
       if (hasDuplicateAppointment(appointment.vehicleId, nextIso, appointment.id)) {
         window.alert("This update would create a duplicate appointment for the same vehicle at the same time.");
@@ -1259,6 +1319,11 @@
 
       if (appointment.status !== APPOINTMENT_STATUS.PENDING_APPROVAL && appointment.status !== APPOINTMENT_STATUS.REJECTED && appointment.bay && isBayUnavailable(appointment.bay, nextIso, appointment.id)) {
         window.alert(`${appointment.bay} is unavailable for the updated time.`);
+        return;
+      }
+
+      if (appointment.status !== APPOINTMENT_STATUS.PENDING_APPROVAL && appointment.status !== APPOINTMENT_STATUS.REJECTED && appointment.assignedOperator && isOperatorDoubleBooked(appointment.assignedOperator, nextIso, appointment.id)) {
+        window.alert(`${appointment.assignedOperator} already has another appointment at the updated time. Reassign the operator or choose a different time.`);
         return;
       }
 
@@ -1380,74 +1445,109 @@
       });
     }
 
+    function promptAssignmentValues(appointment) {
+      const availableOperators = getOperatorNames();
+      const operatorPrompt = `Assign operator for this appointment. Available: ${availableOperators.join(", ")}`;
+      const nextOperator = window.prompt(operatorPrompt, appointment.assignedOperator || availableOperators[0] || "");
+      if (nextOperator === null) return null;
+
+      const trimmedOperator = nextOperator.trim();
+      if (!trimmedOperator) {
+        window.alert("Assignment canceled. An operator assignment is required.");
+        return null;
+      }
+
+      const bayPrompt = `Assign bay for this appointment. Available bays: ${BAYS.join(", ")}`;
+      const nextBay = window.prompt(bayPrompt, appointment.bay || BAYS[0]);
+      if (nextBay === null) return null;
+
+      const trimmedBay = nextBay.trim();
+      if (!BAYS.includes(trimmedBay)) {
+        window.alert(`Assignment canceled. Choose one of these bays: ${BAYS.join(", ")}.`);
+        return null;
+      }
+
+      const durationResponse = window.prompt("Estimated duration in hours.", String(appointment.estimatedDurationHours || 1));
+      if (durationResponse === null) return null;
+      const estimatedDurationHours = Number(durationResponse);
+      if (!Number.isFinite(estimatedDurationHours) || estimatedDurationHours <= 0) {
+        window.alert("Enter a valid estimated duration in hours.");
+        return null;
+      }
+
+      return {
+        assignedOperator: trimmedOperator,
+        bay: trimmedBay,
+        estimatedDurationHours
+      };
+    }
+
+    function applyAppointmentAssignment(appointmentId, assignmentValues) {
+      const appointment = state.appointments.find((item) => item.id === appointmentId);
+      if (!appointment) return false;
+
+      if (hasDuplicateAppointment(appointment.vehicleId, appointment.appointmentAt, appointment.id)) {
+        window.alert("This booking conflicts with an existing appointment for the same vehicle at the same time.");
+        return false;
+      }
+
+      if (isBayUnavailable(assignmentValues.bay, appointment.appointmentAt, appointment.id)) {
+        window.alert(`${assignmentValues.bay} is unavailable for that appointment time. Choose another bay.`);
+        return false;
+      }
+
+      if (!isTechnicianAvailable(assignmentValues.assignedOperator, appointment.serviceType, appointment.id)) {
+        return false;
+      }
+
+      state.appointments = state.appointments.map((item) =>
+        item.id === appointmentId
+          ? {
+              ...item,
+              approved: true,
+              approvedByAdmin: auth.name,
+              assignedOperator: assignmentValues.assignedOperator,
+              bay: assignmentValues.bay,
+              estimatedDurationHours: assignmentValues.estimatedDurationHours,
+              status: item.status === APPOINTMENT_STATUS.PENDING_APPROVAL ? APPOINTMENT_STATUS.ASSIGNED : item.status
+            }
+          : item
+      );
+
+      const updatedAppointment = state.appointments.find((item) => item.id === appointmentId);
+      const workOrder = createWorkOrderFromAppointment(updatedAppointment);
+      if (workOrder) {
+        state.workOrders = state.workOrders.map((item) =>
+          item.id === workOrder.id
+            ? { ...item, assignedTechnician: assignmentValues.assignedOperator }
+            : item
+        );
+      }
+
+      persistState();
+      render();
+      return true;
+    }
+
     function approveAppointment(appointmentId) {
       if (auth?.role !== "admin") return;
 
       const appointment = state.appointments.find((item) => item.id === appointmentId);
       if (!appointment) return;
+      const assignmentValues = promptAssignmentValues(appointment);
+      if (!assignmentValues) return;
+      applyAppointmentAssignment(appointmentId, assignmentValues);
+    }
 
-      const availableOperators = getOperatorNames();
-      const operatorPrompt = `Assign operator for this appointment. Available: ${availableOperators.join(", ")}`;
-      const nextOperator = window.prompt(operatorPrompt, appointment.assignedOperator || availableOperators[0] || "");
-      if (nextOperator === null) return;
+    function reassignAppointment(appointmentId) {
+      if (!isAdminUser()) return;
 
-      const trimmedOperator = nextOperator.trim();
-      if (!trimmedOperator) {
-        window.alert("Approval canceled. An operator assignment is required.");
-        return;
-      }
+      const appointment = state.appointments.find((item) => item.id === appointmentId);
+      if (!appointment) return;
 
-      const bayPrompt = `Assign bay for this appointment. Available bays: ${BAYS.join(", ")}`;
-      const nextBay = window.prompt(bayPrompt, appointment.bay || BAYS[0]);
-      if (nextBay === null) return;
-
-      const trimmedBay = nextBay.trim();
-      if (!BAYS.includes(trimmedBay)) {
-        window.alert(`Approval canceled. Choose one of these bays: ${BAYS.join(", ")}.`);
-        return;
-      }
-
-      const durationResponse = window.prompt("Estimated duration in hours.", String(appointment.estimatedDurationHours || 1));
-      if (durationResponse === null) return;
-      const estimatedDurationHours = Number(durationResponse);
-      if (!Number.isFinite(estimatedDurationHours) || estimatedDurationHours <= 0) {
-        window.alert("Enter a valid estimated duration in hours.");
-        return;
-      }
-
-      if (hasDuplicateAppointment(appointment.vehicleId, appointment.appointmentAt, appointment.id)) {
-        window.alert("This booking conflicts with an existing appointment for the same vehicle at the same time.");
-        return;
-      }
-
-      if (isBayUnavailable(trimmedBay, appointment.appointmentAt, appointment.id)) {
-        window.alert(`${trimmedBay} is unavailable for that appointment time. Choose another bay.`);
-        return;
-      }
-
-      if (!isTechnicianAvailable(trimmedOperator, appointment.serviceType, appointment.id)) {
-        return;
-      }
-
-      state.appointments = state.appointments.map((appointment) =>
-        appointment.id === appointmentId
-          ? {
-              ...appointment,
-              approved: true,
-              approvedByAdmin: auth.name,
-              assignedOperator: trimmedOperator,
-              bay: trimmedBay,
-              estimatedDurationHours,
-              status: APPOINTMENT_STATUS.ASSIGNED
-            }
-          : appointment
-      );
-      createWorkOrderFromAppointment({
-        ...appointment,
-        assignedOperator: trimmedOperator
-      });
-      persistState();
-      render();
+      const assignmentValues = promptAssignmentValues(appointment);
+      if (!assignmentValues) return;
+      applyAppointmentAssignment(appointmentId, assignmentValues);
     }
 
     function rejectAppointment(appointmentId) {
@@ -1487,6 +1587,7 @@
           const workOrder = findWorkOrderByAppointment(appointment.id);
           const appointmentCode = formatRecordId("APT", appointment.id);
           const workOrderCode = workOrder ? formatRecordId("WO", workOrder.id) : "WO-NOT-CREATED";
+          const assignmentConflicts = getAssignmentConflictSummary(appointment);
 
           return `
             <article class="list-card">
@@ -1504,9 +1605,11 @@
                 <span class="pill">${appointment.notificationSentAt ? "Customer notified" : "Notification pending"}</span>
               </div>
               <p>${appointment.bookingNote || "No booking note."}</p>
+              ${assignmentConflicts.length ? `<p><strong>Scheduling issue:</strong> ${assignmentConflicts.join(" and ")}.</p>` : ""}
               <div class="list-actions">
                 ${appointment.status === APPOINTMENT_STATUS.PENDING_APPROVAL ? `<button type="button" class="primary-btn" data-assign-appointment="${appointment.id}">Assign / Create Work Order</button>` : ""}
                 ${appointment.status === APPOINTMENT_STATUS.PENDING_APPROVAL ? `<button type="button" class="danger-btn" data-reject-appointment="${appointment.id}">Reject</button>` : ""}
+                ${appointment.status !== APPOINTMENT_STATUS.COMPLETED && appointment.status !== APPOINTMENT_STATUS.REJECTED ? `<button type="button" class="secondary-btn" data-reassign-appointment="${appointment.id}">Reassign Bay / Operator</button>` : ""}
                 ${workOrder && workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED ? `<button type="button" class="secondary-btn" data-verify-work="${workOrder.id}">Review Work Order</button>` : ""}
                 ${workOrder && workOrder.status === WORK_ORDER_STATUS.VERIFIED ? `<button type="button" class="primary-btn" data-ready-pickup="${workOrder.id}">Notify Ready for Pickup / Payment</button>` : ""}
                 ${workOrder && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP ? `<button type="button" class="secondary-btn" data-complete-job="${workOrder.id}">Complete Pickup</button>` : ""}
@@ -1519,6 +1622,9 @@
 
       elements.appointmentQueueList.querySelectorAll("[data-assign-appointment]").forEach((button) => {
         button.addEventListener("click", () => approveAppointment(button.dataset.assignAppointment));
+      });
+      elements.appointmentQueueList.querySelectorAll("[data-reassign-appointment]").forEach((button) => {
+        button.addEventListener("click", () => reassignAppointment(button.dataset.reassignAppointment));
       });
       elements.appointmentQueueList.querySelectorAll("[data-reject-appointment]").forEach((button) => {
         button.addEventListener("click", () => rejectAppointment(button.dataset.rejectAppointment));
