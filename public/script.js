@@ -6,13 +6,13 @@
     const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
     const SESSION_PERSIST_INTERVAL_MS = 60 * 1000;
     const DEFAULT_CUSTOMER_PASSWORD = "customer123";
+    const DEFAULT_OPERATOR_PASSWORD = "operator123";
     const DEFAULT_CUSTOMER_PASSWORD_HASH = "1ef916ed";
     const DEMO_PASSWORD_HASHES = {
       admin: "185030e4",
       operator: "ef24a767"
     };
     const BAYS = ["Bay 1", "Bay 2", "Bay 3", "Bay 4"];
-    const OPERATORS = ["Jane Doe", "Alex Rivera", "Sam Lee", "Chris Hall"];
     const APPOINTMENT_STATUS = {
       PENDING_APPROVAL: "PENDING_APPROVAL",
       REJECTED: "REJECTED",
@@ -67,7 +67,10 @@
     // =============================
     const demoUsers = [
       { id: "admin-user", role: "admin", email: "admin@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.admin, name: "Shop Admin" },
-      { id: "operator-user", role: "operator", email: "operator@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Jane Doe" }
+      { id: "operator-jane-doe", role: "operator", email: "operator@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Jane Doe" },
+      { id: "operator-alex-rivera", role: "operator", email: "alex.rivera@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Alex Rivera" },
+      { id: "operator-sam-lee", role: "operator", email: "sam.lee@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Sam Lee" },
+      { id: "operator-chris-hall", role: "operator", email: "chris.hall@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Chris Hall" }
     ];
 
     function createDemoState() {
@@ -286,16 +289,23 @@
       metricOpenOrders: document.getElementById("metricOpenOrders"),
       metricLowStock: document.getElementById("metricLowStock"),
       customerForm: document.getElementById("customerForm"),
+      operatorForm: document.getElementById("operatorForm"),
       vehicleForm: document.getElementById("vehicleForm"),
       customerIdField: document.getElementById("customerIdField"),
+      operatorIdField: document.getElementById("operatorIdField"),
       customerNameField: document.getElementById("customerNameField"),
+      operatorNameField: document.getElementById("operatorNameField"),
       customerAddressField: document.getElementById("customerAddressField"),
       customerPhoneField: document.getElementById("customerPhoneField"),
       customerEmailField: document.getElementById("customerEmailField"),
+      operatorEmailField: document.getElementById("operatorEmailField"),
       customerLoyaltyField: document.getElementById("customerLoyaltyField"),
       customerFormMessage: document.getElementById("customerFormMessage"),
+      operatorFormMessage: document.getElementById("operatorFormMessage"),
       customerSubmitButton: document.getElementById("customerSubmitButton"),
+      operatorSubmitButton: document.getElementById("operatorSubmitButton"),
       customerCancelButton: document.getElementById("customerCancelButton"),
+      operatorCancelButton: document.getElementById("operatorCancelButton"),
       workOrderForm: document.getElementById("workOrderForm"),
       workOrderAppointmentSelect: document.getElementById("workOrderAppointmentSelect"),
       workOrderCustomerSelect: document.getElementById("workOrderCustomerSelect"),
@@ -321,6 +331,7 @@
       searchResults: document.getElementById("searchResults"),
       vehicleIdField: document.getElementById("vehicleIdField"),
       customerList: document.getElementById("customerList"),
+      operatorList: document.getElementById("operatorList"),
       vehicleList: document.getElementById("vehicleList"),
       customerSummary: document.getElementById("customerSummary"),
       customerPasswordForm: document.getElementById("customerPasswordForm"),
@@ -395,6 +406,16 @@
       return parts.length ? parts.join(" ") : vehicle.vehicleLabel || "Vehicle";
     }
 
+    function getOperatorUsers() {
+      return getAllUsers()
+        .filter((user) => user.role === "operator")
+        .sort((first, second) => first.name.localeCompare(second.name));
+    }
+
+    function getOperatorNames() {
+      return getOperatorUsers().map((user) => user.name);
+    }
+
     function formatRecordId(prefix, value) {
       if (!value) return `${prefix}-N/A`;
       const normalized = String(value);
@@ -440,10 +461,16 @@
       elements.loginMessage.textContent = "";
 
       elements.customerForm?.reset();
-      elements.customerIdField.value = "";
-      elements.customerSubmitButton.textContent = "Save Customer";
-      elements.customerCancelButton.hidden = true;
-      clearFormMessage(elements.customerFormMessage);
+      if (elements.customerIdField) elements.customerIdField.value = "";
+      if (elements.customerSubmitButton) elements.customerSubmitButton.textContent = "Save Customer";
+      if (elements.customerCancelButton) elements.customerCancelButton.hidden = true;
+      if (elements.customerFormMessage) clearFormMessage(elements.customerFormMessage);
+
+      elements.operatorForm?.reset();
+      if (elements.operatorIdField) elements.operatorIdField.value = "";
+      if (elements.operatorSubmitButton) elements.operatorSubmitButton.textContent = "Save Operator";
+      if (elements.operatorCancelButton) elements.operatorCancelButton.hidden = true;
+      if (elements.operatorFormMessage) clearFormMessage(elements.operatorFormMessage);
 
       elements.vehicleForm?.reset();
       elements.vehicleIdField.value = "";
@@ -573,6 +600,29 @@
       return true;
     }
 
+    function validateOperatorForm() {
+      const name = elements.operatorNameField.value.trim();
+      const email = elements.operatorEmailField.value.trim().toLowerCase();
+
+      if (!name || !email) {
+        setFormMessage(elements.operatorFormMessage, "Complete all required operator fields before saving.");
+        window.alert("Please complete all required operator fields.");
+        return false;
+      }
+
+      const duplicateUser = getAllUsers().find((user) =>
+        user.email === email && user.id !== String(elements.operatorIdField.value || "")
+      );
+      if (duplicateUser) {
+        setFormMessage(elements.operatorFormMessage, "An operator with that email already exists.");
+        window.alert("An operator with that email already exists.");
+        return false;
+      }
+
+      clearFormMessage(elements.operatorFormMessage);
+      return true;
+    }
+
     function validateVehicleForm() {
       const customerId = elements.vehicleCustomerSelect.value;
       const year = Number(elements.vehicleYearField.value);
@@ -619,6 +669,14 @@
       elements.customerSubmitButton.textContent = "Save Customer";
       elements.customerCancelButton.hidden = true;
       clearFormMessage(elements.customerFormMessage);
+    }
+
+    function resetOperatorForm() {
+      elements.operatorForm?.reset();
+      if (elements.operatorIdField) elements.operatorIdField.value = "";
+      if (elements.operatorSubmitButton) elements.operatorSubmitButton.textContent = "Save Operator";
+      if (elements.operatorCancelButton) elements.operatorCancelButton.hidden = true;
+      if (elements.operatorFormMessage) clearFormMessage(elements.operatorFormMessage);
     }
 
     function resetVehicleForm() {
@@ -811,9 +869,15 @@
       return auth?.role === "operator";
     }
 
+    function getTechnicianProfile(technicianName) {
+      return TECHNICIAN_PROFILES[technicianName] || {
+        skills: SERVICE_CATALOG.map((service) => service.name),
+        maxConcurrentJobs: 2
+      };
+    }
+
     function isTechnicianSkilledForService(technicianName, serviceType) {
-      const profile = TECHNICIAN_PROFILES[technicianName];
-      if (!profile) return false;
+      const profile = getTechnicianProfile(technicianName);
       return profile.skills.includes(serviceType) || serviceType === "General Repair";
     }
 
@@ -826,11 +890,7 @@
     }
 
     function isTechnicianAvailable(technicianName, serviceType, excludeAppointmentId = "") {
-      const profile = TECHNICIAN_PROFILES[technicianName];
-      if (!profile) {
-        window.alert("Choose a listed technician.");
-        return false;
-      }
+      const profile = getTechnicianProfile(technicianName);
       if (!isTechnicianSkilledForService(technicianName, serviceType)) {
         window.alert(`${technicianName} is not assigned to that service type.`);
         return false;
@@ -1294,8 +1354,9 @@
       const appointment = state.appointments.find((item) => item.id === appointmentId);
       if (!appointment) return;
 
-      const operatorPrompt = `Assign operator for this appointment. Available: ${OPERATORS.join(", ")}`;
-      const nextOperator = window.prompt(operatorPrompt, appointment.assignedOperator || OPERATORS[0]);
+      const availableOperators = getOperatorNames();
+      const operatorPrompt = `Assign operator for this appointment. Available: ${availableOperators.join(", ")}`;
+      const nextOperator = window.prompt(operatorPrompt, appointment.assignedOperator || availableOperators[0] || "");
       if (nextOperator === null) return;
 
       const trimmedOperator = nextOperator.trim();
@@ -1625,6 +1686,20 @@
       return state.users || [];
     }
 
+    function upsertOperatorUser(operatorRecord) {
+      const existingUser = state.users.find((user) => user.id === operatorRecord.id && user.role === "operator");
+      const nextUser = {
+        id: existingUser?.id || operatorRecord.id || `operator-${crypto.randomUUID()}`,
+        role: "operator",
+        email: operatorRecord.email.toLowerCase(),
+        passwordHash: existingUser?.passwordHash || DEMO_PASSWORD_HASHES.operator,
+        name: operatorRecord.name
+      };
+      state.users = existingUser
+        ? state.users.map((user) => user.id === existingUser.id ? nextUser : user)
+        : [...state.users, nextUser];
+    }
+
     function upsertCustomerUser(customer) {
       const existingUser = state.users.find((user) => user.customerId === customer.id && user.role === "customer");
       const nextUser = {
@@ -1638,6 +1713,33 @@
       state.users = existingUser
         ? state.users.map((user) => user.id === existingUser.id ? nextUser : user)
         : [...state.users, nextUser];
+    }
+
+    function resetOperatorPassword(operatorId) {
+      const operator = getOperatorUsers().find((user) => user.id === operatorId);
+      if (!operator) return;
+
+      const nextPassword = window.prompt(
+        `Set a temporary password for ${operator.name}. Leave the suggested value or replace it.`,
+        DEFAULT_OPERATOR_PASSWORD
+      );
+      if (nextPassword === null) return;
+
+      const trimmedPassword = nextPassword.trim();
+      if (!trimmedPassword) {
+        window.alert("Password reset canceled. Enter a non-empty password.");
+        return;
+      }
+
+      state.users = state.users.map((user) =>
+        user.id === operatorId && user.role === "operator"
+          ? { ...user, passwordHash: hashPassword(trimmedPassword) }
+          : user
+      );
+      persistState();
+      setFormMessage(elements.operatorFormMessage, `Password reset for ${operator.name}. Temporary password: ${trimmedPassword}`);
+      window.alert(`Password reset for ${operator.name}. New temporary password: ${trimmedPassword}`);
+      render();
     }
 
     function resetCustomerPassword(customerId) {
@@ -1769,6 +1871,26 @@
       render();
     }
 
+    function deleteOperator(operatorId) {
+      if (!isAdminUser()) return;
+
+      const operator = getOperatorUsers().find((user) => user.id === operatorId);
+      if (!operator) return;
+
+      if (auth?.email === operator.email) {
+        window.alert("You cannot delete the operator account that is currently signed in.");
+        return;
+      }
+
+      const confirmed = window.confirm(`Delete operator ${operator.name}? Existing appointment and work-order history will keep the recorded operator name.`);
+      if (!confirmed) return;
+      if (!confirmAdminPassword(`delete operator ${operator.name}`)) return;
+
+      state.users = state.users.filter((user) => !(user.id === operatorId && user.role === "operator"));
+      persistState();
+      render();
+    }
+
     function deleteVehicle(vehicleId) {
       if (!isAdminUser()) return;
 
@@ -1865,10 +1987,11 @@
         elements.workOrderServiceSelect.value = selectedAppointment.serviceType;
       }
 
-      elements.workOrderTechnicianSelect.innerHTML = OPERATORS
+      const operatorNames = getOperatorNames();
+      elements.workOrderTechnicianSelect.innerHTML = operatorNames
         .map((operator) => `<option value="${operator}">${operator}</option>`)
         .join("");
-      if (selectedAppointment?.assignedOperator && OPERATORS.includes(selectedAppointment.assignedOperator)) {
+      if (selectedAppointment?.assignedOperator && operatorNames.includes(selectedAppointment.assignedOperator)) {
         elements.workOrderTechnicianSelect.value = selectedAppointment.assignedOperator;
       }
     }
@@ -2031,6 +2154,49 @@
       });
       elements.customerList.querySelectorAll("[data-delete-customer]").forEach((button) => {
         button.addEventListener("click", () => deleteCustomer(button.dataset.deleteCustomer));
+      });
+    }
+
+    function renderOperators() {
+      if (!elements.operatorList) return;
+      if (!isAdminUser()) {
+        elements.operatorList.innerHTML = "";
+        return;
+      }
+
+      const operators = getOperatorUsers();
+      elements.operatorList.innerHTML = renderList(
+        operators,
+        (operator) => {
+          const profile = getTechnicianProfile(operator.name);
+          return `
+            <article class="list-card">
+              <h4>${operator.name}</h4>
+              <p>${operator.email}</p>
+              <div class="stack-meta">
+                <span class="pill">Default login: ${operator.email}</span>
+                <span class="pill">Password: ${DEFAULT_OPERATOR_PASSWORD}</span>
+                <span class="pill">Capacity: ${profile?.maxConcurrentJobs || 2}</span>
+              </div>
+              <div class="list-actions">
+                <button type="button" class="secondary-btn" data-edit-operator="${operator.id}">Edit Operator</button>
+                <button type="button" class="secondary-btn" data-reset-operator-password="${operator.id}">Reset Password</button>
+                <button type="button" class="danger-btn" data-delete-operator="${operator.id}">Delete Operator</button>
+              </div>
+            </article>
+          `;
+        },
+        "No operators yet. Add an operator account for service assignments."
+      );
+
+      elements.operatorList.querySelectorAll("[data-edit-operator]").forEach((button) => {
+        button.addEventListener("click", () => startOperatorEdit(button.dataset.editOperator));
+      });
+      elements.operatorList.querySelectorAll("[data-reset-operator-password]").forEach((button) => {
+        button.addEventListener("click", () => resetOperatorPassword(button.dataset.resetOperatorPassword));
+      });
+      elements.operatorList.querySelectorAll("[data-delete-operator]").forEach((button) => {
+        button.addEventListener("click", () => deleteOperator(button.dataset.deleteOperator));
       });
     }
 
@@ -2279,7 +2445,7 @@
       const completed = state.workOrders.filter((workOrder) => workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED);
       const readyForPickup = state.workOrders.filter((workOrder) => workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP);
       const lowStockParts = state.inventory.filter((part) => part.quantity <= part.reorderPoint);
-      const operatorCompletionStats = OPERATORS.map((operator) => {
+      const operatorCompletionStats = getOperatorNames().map((operator) => {
         const completedCount = state.workOrders.filter((workOrder) =>
           workOrder.assignedTechnician === operator && workOrder.status === WORK_ORDER_STATUS.COMPLETED
         ).length;
@@ -2298,10 +2464,10 @@
         ).length;
         return `${bay}: ${activeCount ? "Occupied" : "Open"}`;
       });
-      const technicianStatus = OPERATORS.map((operator) => {
-        const profile = TECHNICIAN_PROFILES[operator];
+      const technicianStatus = getOperatorNames().map((operator) => {
+        const profile = getTechnicianProfile(operator);
         const activeCount = getTechnicianActiveJobs(operator).length;
-        return `${operator}: ${activeCount}/${profile?.maxConcurrentJobs || 0} active`;
+        return `${operator}: ${activeCount}/${profile.maxConcurrentJobs} active`;
       });
 
       elements.adminStatusBoard.innerHTML = `
@@ -2395,6 +2561,19 @@
       elements.customerCancelButton.hidden = false;
       setFormMessage(elements.customerFormMessage, `Editing ${customer.name}. Save to update the record.`);
       elements.customerNameField.focus();
+    }
+
+    function startOperatorEdit(operatorId) {
+      const operator = getOperatorUsers().find((user) => user.id === operatorId);
+      if (!operator) return;
+
+      elements.operatorIdField.value = operator.id;
+      elements.operatorNameField.value = operator.name;
+      elements.operatorEmailField.value = operator.email;
+      elements.operatorSubmitButton.textContent = "Update Operator";
+      elements.operatorCancelButton.hidden = false;
+      setFormMessage(elements.operatorFormMessage, `Editing ${operator.name}. Save to update the record.`);
+      elements.operatorNameField.focus();
     }
 
     function startVehicleEdit(vehicleId) {
@@ -2644,6 +2823,7 @@
       }
       if (isAdminUser()) {
         renderCustomers();
+        renderOperators();
         renderWorkOrders();
         renderInventory();
         renderAdminStatusBoard();
@@ -2686,6 +2866,7 @@
       }
 
       auth = {
+        id: matchedUser.id,
         role: matchedUser.role,
         email: matchedUser.email,
         name: matchedUser.name,
@@ -2749,6 +2930,39 @@
 
     elements.customerCancelButton.addEventListener("click", () => {
       resetCustomerForm();
+    });
+
+    elements.operatorForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!validateOperatorForm()) return;
+
+      const formData = new FormData(event.currentTarget);
+      const operatorId = String(formData.get("id") || "");
+      const operatorRecord = {
+        id: operatorId || `operator-${crypto.randomUUID()}`,
+        role: "operator",
+        name: String(formData.get("name")).trim(),
+        email: String(formData.get("email")).trim().toLowerCase()
+      };
+
+      if (operatorId) {
+        upsertOperatorUser(operatorRecord);
+        if (auth?.id === operatorId) {
+          auth = { ...auth, name: operatorRecord.name, email: operatorRecord.email };
+          persistAuth();
+        }
+      } else {
+        upsertOperatorUser(operatorRecord);
+        setFormMessage(elements.operatorFormMessage, `Operator created. Default temporary password: ${DEFAULT_OPERATOR_PASSWORD}`);
+      }
+
+      persistState();
+      render();
+      resetOperatorForm();
+    });
+
+    elements.operatorCancelButton?.addEventListener("click", () => {
+      resetOperatorForm();
     });
 
     elements.searchForm?.addEventListener("input", () => {

@@ -70,6 +70,7 @@
       <nav class="sidebar-nav" aria-label="Primary">
         <a href="#dashboard">Dashboard</a>
         <a href="#customers" data-admin-role>Customers</a>
+        <a href="#operators" data-admin-role>Operators</a>
         <a href="#vehicles" data-admin-only>Vehicles</a>
         <a href="#inventory" data-admin-role>Inventory</a>
         <a href="#customer-portal" data-customer-only>My Portal</a>
@@ -299,6 +300,30 @@
             </div>
           </form>
           <div id="customerList" class="stack-list"></div>
+        </article>
+
+        <article class="panel" id="operators" data-admin-role>
+          <div class="panel-heading">
+            <p class="eyebrow">Operators</p>
+            <h3>Manage operator accounts</h3>
+          </div>
+          <form id="operatorForm" class="form-grid">
+            <input type="hidden" name="id" id="operatorIdField">
+            <label>
+              Full Name
+              <input name="name" id="operatorNameField" type="text" placeholder="Alex Rivera" required>
+            </label>
+            <label>
+              Email
+              <input name="email" id="operatorEmailField" type="email" placeholder="alex.rivera@icloud.com" required>
+            </label>
+            <p id="operatorFormMessage" class="form-status full-span" aria-live="polite"></p>
+            <div class="full-span hero-actions">
+              <button type="submit" class="primary-btn" id="operatorSubmitButton">Save Operator</button>
+              <button type="button" class="secondary-btn" id="operatorCancelButton" hidden>Cancel Edit</button>
+            </div>
+          </form>
+          <div id="operatorList" class="stack-list"></div>
         </article>
 
         <article class="panel" id="vehicles">
