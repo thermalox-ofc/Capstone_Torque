@@ -492,6 +492,51 @@
           </div>
           <div id="operatorJobList" class="stack-list"></div>
         </article>
+
+        <article class="panel" data-admin-role>
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Invoice Checkout</p>
+              <h3>Collect payment before completing pickup</h3>
+            </div>
+          </div>
+          <form id="invoiceForm" class="form-grid">
+            <input type="hidden" name="workOrderId" id="invoiceWorkOrderIdField">
+            <div id="invoiceSummary" class="stack-list full-span">
+              <article class="empty-state">Select a verified or ready-for-pickup work order to prepare the invoice.</article>
+            </div>
+            <label>
+              Labor Cost
+              <input name="laborCost" id="invoiceLaborCostField" type="number" min="0" step="0.01" placeholder="120.00">
+            </label>
+            <label>
+              Other Charges
+              <input name="otherCost" id="invoiceOtherCostField" type="number" min="0" step="0.01" placeholder="15.00">
+            </label>
+            <label class="full-span">
+              Other Charges Note
+              <input name="otherDescription" id="invoiceOtherDescriptionField" type="text" placeholder="Environmental fee, shop supplies, towing, or misc.">
+            </label>
+            <label>
+              Material / Inventory Item
+              <select id="invoiceMaterialSelect"></select>
+            </label>
+            <label>
+              Quantity
+              <input id="invoiceMaterialQuantityField" type="number" min="1" step="1" value="1">
+            </label>
+            <div class="full-span hero-actions">
+              <button type="button" class="secondary-btn" id="invoiceAddMaterialButton">Add Material</button>
+            </div>
+            <div id="invoiceMaterialList" class="stack-list full-span"></div>
+            <div id="invoiceTotals" class="stack-list full-span"></div>
+            <p id="invoiceMessage" class="form-status full-span" aria-live="polite"></p>
+            <div class="full-span hero-actions">
+              <button type="submit" class="primary-btn" id="invoiceSaveButton">Save Invoice</button>
+              <button type="button" class="secondary-btn" id="invoiceMarkPaidButton">Mark Paid</button>
+            </div>
+          </form>
+        </article>
       </section>
     </main>
   </div>

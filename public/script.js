@@ -224,9 +224,31 @@
           completedAt: "",
           verifiedAt: "",
           reviewRequestedAt: "",
-          ...workOrder
+          invoice: {
+            laborCost: 0,
+            otherCost: 0,
+            otherDescription: "",
+            paid: false,
+            paidAt: "",
+            paidBy: ""
+          },
+          ...workOrder,
+          invoice: {
+            laborCost: 0,
+            otherCost: 0,
+            otherDescription: "",
+            paid: false,
+            paidAt: "",
+            paidBy: "",
+            ...(workOrder.invoice || {})
+          }
         })),
-        workOrderParts: rawState.workOrderParts || [],
+        workOrderParts: (rawState.workOrderParts || []).map((item) => ({
+          unitPrice: 0,
+          partName: "",
+          sku: "",
+          ...item
+        })),
         appointments: (rawState.appointments || []).map((appointment) => ({
           bookingNote: "",
           approved: false,
@@ -271,6 +293,8 @@
     let state = loadState();
     let auth = loadAuth();
     let lastSessionPersistAt = Number(auth?.lastActiveAt || 0);
+    let selectedInvoiceWorkOrderId = "";
+    let invoicePanelNotice = "";
 
     // =============================
     // DOM ELEMENT REFERENCES
@@ -367,6 +391,20 @@
       adminAppointmentAt: document.getElementById("adminAppointmentAt"),
       adminBookingMessage: document.getElementById("adminBookingMessage"),
       adminStatusBoard: document.getElementById("adminStatusBoard"),
+      invoiceForm: document.getElementById("invoiceForm"),
+      invoiceWorkOrderIdField: document.getElementById("invoiceWorkOrderIdField"),
+      invoiceSummary: document.getElementById("invoiceSummary"),
+      invoiceLaborCostField: document.getElementById("invoiceLaborCostField"),
+      invoiceOtherCostField: document.getElementById("invoiceOtherCostField"),
+      invoiceOtherDescriptionField: document.getElementById("invoiceOtherDescriptionField"),
+      invoiceMaterialSelect: document.getElementById("invoiceMaterialSelect"),
+      invoiceMaterialQuantityField: document.getElementById("invoiceMaterialQuantityField"),
+      invoiceAddMaterialButton: document.getElementById("invoiceAddMaterialButton"),
+      invoiceMaterialList: document.getElementById("invoiceMaterialList"),
+      invoiceTotals: document.getElementById("invoiceTotals"),
+      invoiceMessage: document.getElementById("invoiceMessage"),
+      invoiceSaveButton: document.getElementById("invoiceSaveButton"),
+      invoiceMarkPaidButton: document.getElementById("invoiceMarkPaidButton"),
       ongoingServicesList: document.getElementById("ongoingServicesList"),
       scheduleList: document.getElementById("scheduleList"),
       portalTitle: document.getElementById("portalTitle"),
@@ -497,6 +535,23 @@
       elements.adminBookingForm?.reset();
       clearFormMessage(elements.adminBookingMessage);
 
+      elements.invoiceForm?.reset();
+      if (elements.invoiceWorkOrderIdField) {
+        elements.invoiceWorkOrderIdField.value = "";
+      }
+      if (elements.invoiceSummary) {
+        elements.invoiceSummary.innerHTML = '<article class="empty-state">Select a verified or ready-for-pickup work order to prepare the invoice.</article>';
+      }
+      if (elements.invoiceMaterialList) {
+        elements.invoiceMaterialList.innerHTML = "";
+      }
+      if (elements.invoiceTotals) {
+        elements.invoiceTotals.innerHTML = "";
+      }
+      clearFormMessage(elements.invoiceMessage);
+      selectedInvoiceWorkOrderId = "";
+      invoicePanelNotice = "";
+
       elements.inventoryForm?.reset();
       if (elements.inventoryIdField) {
         elements.inventoryIdField.value = "";
@@ -513,6 +568,8 @@
     function expireSession() {
       auth = null;
       lastSessionPersistAt = 0;
+      selectedInvoiceWorkOrderId = "";
+      invoicePanelNotice = "";
       localStorage.removeItem(AUTH_KEY);
     }
 
@@ -734,6 +791,17 @@
       clearFormMessage(elements.inventoryMessage);
     }
 
+    function resetInvoicePanel() {
+      elements.invoiceForm?.reset();
+      if (elements.invoiceWorkOrderIdField) {
+        elements.invoiceWorkOrderIdField.value = "";
+      }
+      clearFormMessage(elements.invoiceMessage);
+      selectedInvoiceWorkOrderId = "";
+      invoicePanelNotice = "";
+      renderInvoicePanel();
+    }
+
     // =============================
     // ROLE / ENTITY LOOKUPS
     // =============================
@@ -763,6 +831,52 @@
 
     function findWorkOrderByAppointment(appointmentId) {
       return state.workOrders.find((workOrder) => workOrder.appointmentId === appointmentId);
+    }
+
+    function getInvoiceState(workOrder) {
+      return {
+        laborCost: 0,
+        otherCost: 0,
+        otherDescription: "",
+        paid: false,
+        paidAt: "",
+        paidBy: "",
+        ...(workOrder?.invoice || {})
+      };
+    }
+
+    function getWorkOrderMaterialLines(workOrderId) {
+      return state.workOrderParts
+        .filter((item) => item.workOrderId === workOrderId)
+        .map((item) => {
+          const inventoryPart = state.inventory.find((part) => part.id === item.partId);
+          const unitPrice = Number(item.unitPrice ?? inventoryPart?.price ?? 0);
+          const quantity = Number(item.quantity || 0);
+          return {
+            ...item,
+            displayName: item.partName || inventoryPart?.name || "Inventory item",
+            sku: item.sku || inventoryPart?.sku || "",
+            unitPrice,
+            quantity,
+            lineTotal: unitPrice * quantity
+          };
+        });
+    }
+
+    function getWorkOrderInvoiceTotals(workOrder) {
+      const invoice = getInvoiceState(workOrder);
+      const materials = getWorkOrderMaterialLines(workOrder.id);
+      const materialsTotal = materials.reduce((sum, item) => sum + item.lineTotal, 0);
+      const laborCost = Number(invoice.laborCost || 0);
+      const otherCost = Number(invoice.otherCost || 0);
+      return {
+        materials,
+        materialsTotal,
+        laborCost,
+        otherCost,
+        grandTotal: laborCost + materialsTotal + otherCost,
+        invoice
+      };
     }
 
     function getCurrentCustomer() {
@@ -804,6 +918,13 @@
         dateStyle: "medium",
         timeStyle: "short"
       }).format(new Date(value));
+    }
+
+    function formatCurrency(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format(Number(value || 0));
     }
 
     function getDaysUntilAppointment(value) {
@@ -1027,7 +1148,15 @@
         readyForPickupAt: "",
         completedAt: "",
         verifiedAt: "",
-        reviewRequestedAt: ""
+        reviewRequestedAt: "",
+        invoice: {
+          laborCost: 0,
+          otherCost: 0,
+          otherDescription: "",
+          paid: false,
+          paidAt: "",
+          paidBy: ""
+        }
       };
 
       state.workOrders.unshift(workOrder);
@@ -1137,7 +1266,7 @@
         if (existingPartLink) {
           state.workOrderParts = state.workOrderParts.map((item) =>
             item.workOrderId === workOrderId && item.partId === part.id
-              ? { ...item, quantity: item.quantity + quantity }
+              ? { ...item, quantity: item.quantity + quantity, unitPrice: item.unitPrice || part.price, partName: item.partName || part.name, sku: item.sku || part.sku }
               : item
           );
         } else {
@@ -1145,7 +1274,10 @@
             id: crypto.randomUUID(),
             workOrderId,
             partId: part.id,
-            quantity
+            quantity,
+            unitPrice: part.price,
+            partName: part.name,
+            sku: part.sku
           });
         }
       });
@@ -1163,7 +1295,9 @@
         .filter((item) => item.workOrderId === workOrder.id)
         .map((item) => {
           const part = state.inventory.find((inventoryPart) => inventoryPart.id === item.partId);
-          return part ? `${part.name} (SKU ${part.sku}) x${item.quantity}` : "";
+          const partName = item.partName || part?.name;
+          const sku = item.sku || part?.sku;
+          return partName && sku ? `${partName} (SKU ${sku}) x${item.quantity}` : "";
         })
         .filter(Boolean)
         .join(", ");
@@ -1206,7 +1340,7 @@
       if (existingPartLink) {
         state.workOrderParts = state.workOrderParts.map((item) =>
           item.workOrderId === workOrderId && item.partId === partId
-            ? { ...item, quantity: item.quantity + parsedQuantity }
+            ? { ...item, quantity: item.quantity + parsedQuantity, unitPrice: item.unitPrice || matchedPart.price, partName: item.partName || matchedPart.name, sku: item.sku || matchedPart.sku }
             : item
         );
       } else {
@@ -1214,7 +1348,10 @@
           id: crypto.randomUUID(),
           workOrderId,
           partId,
-          quantity: parsedQuantity
+          quantity: parsedQuantity,
+          unitPrice: matchedPart.price,
+          partName: matchedPart.name,
+          sku: matchedPart.sku
         });
       }
 
@@ -1222,6 +1359,256 @@
       persistState();
       render();
       return true;
+    }
+
+    function removeInventoryFromWorkOrder(workOrderId, partId) {
+      const workOrder = findWorkOrder(workOrderId);
+      if (!workOrder) return false;
+
+      const existingPartLink = state.workOrderParts.find((item) => item.workOrderId === workOrderId && item.partId === partId);
+      if (!existingPartLink) {
+        window.alert("That material is not attached to this work order.");
+        return false;
+      }
+
+      state.inventory = state.inventory.map((part) =>
+        part.id === partId
+          ? { ...part, quantity: part.quantity + Number(existingPartLink.quantity || 0) }
+          : part
+      );
+      state.workOrderParts = state.workOrderParts.filter((item) => item !== existingPartLink);
+      syncAppointmentInventorySummary(workOrder.appointmentId);
+      invoicePanelNotice = "Material removed from the invoice and returned to inventory.";
+      persistState();
+      render();
+      return true;
+    }
+
+    function saveInvoiceDraft(options = {}) {
+      if (!isAdminUser()) return false;
+
+      const workOrderId = String(options.workOrderId || elements.invoiceWorkOrderIdField?.value || selectedInvoiceWorkOrderId || "");
+      const workOrder = findWorkOrder(workOrderId);
+      if (!workOrder) {
+        window.alert("Select a work order before saving the invoice.");
+        return false;
+      }
+
+      const laborCost = Number(elements.invoiceLaborCostField?.value || 0);
+      const otherCost = Number(elements.invoiceOtherCostField?.value || 0);
+      const otherDescription = String(elements.invoiceOtherDescriptionField?.value || "").trim();
+
+      if (!Number.isFinite(laborCost) || laborCost < 0 || !Number.isFinite(otherCost) || otherCost < 0) {
+        setFormMessage(elements.invoiceMessage, "Labor and other charges must be zero or greater.");
+        window.alert("Labor and other charges must be zero or greater.");
+        return false;
+      }
+
+      const currentInvoice = getInvoiceState(workOrder);
+      state.workOrders = state.workOrders.map((item) =>
+        item.id === workOrderId
+          ? {
+              ...item,
+              invoice: {
+                ...currentInvoice,
+                laborCost,
+                otherCost,
+                otherDescription
+              }
+            }
+          : item
+      );
+
+      selectedInvoiceWorkOrderId = workOrderId;
+      persistState();
+      render();
+      setFormMessage(elements.invoiceMessage, options.message || "Invoice saved.");
+      return true;
+    }
+
+    function openInvoiceForWorkOrder(workOrderId, notice = "") {
+      const workOrder = findWorkOrder(workOrderId);
+      if (!workOrder) return;
+      selectedInvoiceWorkOrderId = workOrderId;
+      invoicePanelNotice = notice;
+      render();
+      elements.invoiceForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function markInvoicePaid() {
+      if (!isAdminUser()) return;
+
+      const saved = saveInvoiceDraft({ message: "Invoice saved before payment confirmation." });
+      if (!saved) return;
+
+      const workOrderId = String(elements.invoiceWorkOrderIdField?.value || selectedInvoiceWorkOrderId || "");
+      const workOrder = findWorkOrder(workOrderId);
+      if (!workOrder) return;
+
+      if (!confirmAdminPassword(`mark invoice ${formatRecordId("WO", workOrder.id)} as paid`)) return;
+
+      const currentInvoice = getInvoiceState(workOrder);
+      state.workOrders = state.workOrders.map((item) =>
+        item.id === workOrderId
+          ? {
+              ...item,
+              invoice: {
+                ...currentInvoice,
+                laborCost: Number(elements.invoiceLaborCostField?.value || 0),
+                otherCost: Number(elements.invoiceOtherCostField?.value || 0),
+                otherDescription: String(elements.invoiceOtherDescriptionField?.value || "").trim(),
+                paid: true,
+                paidAt: new Date().toISOString(),
+                paidBy: auth.name
+              }
+            }
+          : item
+      );
+
+      persistState();
+      render();
+      setFormMessage(elements.invoiceMessage, "Invoice marked paid. Complete Pickup is now available.");
+    }
+
+    function renderInvoicePanel() {
+      if (!isAdminUser() || !elements.invoiceSummary || !elements.invoiceMaterialList || !elements.invoiceTotals) return;
+
+      const workOrder = findWorkOrder(selectedInvoiceWorkOrderId);
+      if (!workOrder) {
+        selectedInvoiceWorkOrderId = "";
+        if (elements.invoiceWorkOrderIdField) {
+          elements.invoiceWorkOrderIdField.value = "";
+        }
+        elements.invoiceSummary.innerHTML = '<article class="empty-state">Select a verified or ready-for-pickup work order to prepare the invoice.</article>';
+        elements.invoiceMaterialList.innerHTML = "";
+        elements.invoiceTotals.innerHTML = "";
+        if (elements.invoiceMaterialSelect) {
+          elements.invoiceMaterialSelect.innerHTML = '<option value="">Select a work order first</option>';
+          elements.invoiceMaterialSelect.disabled = true;
+        }
+        if (elements.invoiceAddMaterialButton) {
+          elements.invoiceAddMaterialButton.disabled = true;
+        }
+        if (elements.invoiceSaveButton) {
+          elements.invoiceSaveButton.disabled = true;
+        }
+        if (elements.invoiceMarkPaidButton) {
+          elements.invoiceMarkPaidButton.disabled = true;
+          elements.invoiceMarkPaidButton.textContent = "Mark Paid";
+        }
+        if (elements.invoiceMaterialQuantityField) {
+          elements.invoiceMaterialQuantityField.value = "1";
+        }
+        if (elements.invoiceLaborCostField) {
+          elements.invoiceLaborCostField.value = "";
+        }
+        if (elements.invoiceOtherCostField) {
+          elements.invoiceOtherCostField.value = "";
+        }
+        if (elements.invoiceOtherDescriptionField) {
+          elements.invoiceOtherDescriptionField.value = "";
+        }
+        clearFormMessage(elements.invoiceMessage);
+        return;
+      }
+
+      const customer = findCustomer(workOrder.customerId);
+      const vehicle = findVehicle(workOrder.vehicleId);
+      const appointment = workOrder.appointmentId ? state.appointments.find((item) => item.id === workOrder.appointmentId) : null;
+      const { materials, materialsTotal, laborCost, otherCost, grandTotal, invoice } = getWorkOrderInvoiceTotals(workOrder);
+      const availableParts = state.inventory.filter((part) => part.quantity > 0);
+
+      if (elements.invoiceWorkOrderIdField) {
+        elements.invoiceWorkOrderIdField.value = workOrder.id;
+      }
+      if (elements.invoiceLaborCostField) {
+        elements.invoiceLaborCostField.value = String(laborCost || "");
+      }
+      if (elements.invoiceOtherCostField) {
+        elements.invoiceOtherCostField.value = String(otherCost || "");
+      }
+      if (elements.invoiceOtherDescriptionField) {
+        elements.invoiceOtherDescriptionField.value = invoice.otherDescription || "";
+      }
+      if (elements.invoiceMaterialSelect) {
+        elements.invoiceMaterialSelect.innerHTML = availableParts.length
+          ? availableParts.map((part) => `<option value="${part.id}">${part.name} (SKU ${part.sku}) · ${part.quantity} in stock · ${formatCurrency(part.price)}</option>`).join("")
+          : '<option value="">No stocked materials available</option>';
+        elements.invoiceMaterialSelect.disabled = availableParts.length === 0;
+      }
+      if (elements.invoiceAddMaterialButton) {
+        elements.invoiceAddMaterialButton.disabled = availableParts.length === 0;
+      }
+      if (elements.invoiceSaveButton) {
+        elements.invoiceSaveButton.disabled = false;
+      }
+      if (elements.invoiceMarkPaidButton) {
+        elements.invoiceMarkPaidButton.textContent = invoice.paid ? "Payment Recorded" : "Mark Paid";
+        elements.invoiceMarkPaidButton.disabled = invoice.paid;
+      }
+
+      elements.invoiceSummary.innerHTML = `
+        <article class="list-card">
+          <h4>${workOrder.servicesPerformed || "Service work"}</h4>
+          <p>${customer?.name || "Unknown customer"} · ${getVehicleDisplayName(vehicle)}</p>
+          <div class="stack-meta">
+            <span class="pill">${formatRecordId("WO", workOrder.id)}</span>
+            <span class="pill">${formatRecordId("APT", workOrder.appointmentId)}</span>
+            <span class="pill">${workOrder.status}</span>
+            <span class="pill">${invoice.paid ? `Paid ${formatDate(invoice.paidAt)}` : "Unpaid"}</span>
+          </div>
+          <div class="stack-meta">
+            <span class="pill">${appointment?.assignedOperator || workOrder.assignedTechnician || "Operator not assigned"}</span>
+            <span class="pill">${appointment?.bay || "Bay not assigned"}</span>
+            <span class="pill">${appointment ? formatDate(appointment.appointmentAt) : "No appointment time"}</span>
+          </div>
+          <p>${workOrder.faults || appointment?.faults || "No work notes recorded yet."}</p>
+        </article>
+      `;
+
+      elements.invoiceMaterialList.innerHTML = materials.length
+        ? materials.map((item) => `
+          <article class="list-card">
+            <h4>${item.displayName}</h4>
+            <div class="stack-meta">
+              <span class="pill">SKU ${item.sku || "N/A"}</span>
+              <span class="pill">Qty ${item.quantity}</span>
+              <span class="pill">${formatCurrency(item.unitPrice)} each</span>
+              <span class="pill">${formatCurrency(item.lineTotal)}</span>
+            </div>
+            <div class="list-actions">
+              <button type="button" class="secondary-btn" data-remove-invoice-material="${item.partId}">Remove Material</button>
+            </div>
+          </article>
+        `).join("")
+        : '<article class="empty-state">No billed materials yet. Add materials from inventory if they were used on this job.</article>';
+
+      elements.invoiceTotals.innerHTML = `
+        <article class="list-card">
+          <h4>Invoice Totals</h4>
+          <div class="stack-meta">
+            <span class="pill">Labor ${formatCurrency(laborCost)}</span>
+            <span class="pill">Materials ${formatCurrency(materialsTotal)}</span>
+            <span class="pill">Other ${formatCurrency(otherCost)}</span>
+            <span class="pill">Grand Total ${formatCurrency(grandTotal)}</span>
+          </div>
+          <p>${invoice.otherDescription || "No other-charge note added."}</p>
+          <p>${invoice.paid ? `Paid by ${invoice.paidBy || "Admin"} on ${formatDate(invoice.paidAt)}.` : "Payment has not been recorded yet."}</p>
+        </article>
+      `;
+
+      elements.invoiceMaterialList.querySelectorAll("[data-remove-invoice-material]").forEach((button) => {
+        button.addEventListener("click", () => removeInventoryFromWorkOrder(workOrder.id, button.dataset.removeInvoiceMaterial));
+      });
+
+      if (invoicePanelNotice) {
+        setFormMessage(elements.invoiceMessage, invoicePanelNotice);
+        invoicePanelNotice = "";
+      } else if (!invoice.paid) {
+        setFormMessage(elements.invoiceMessage, "Review labor, materials, and other charges before marking this invoice paid.");
+      } else {
+        setFormMessage(elements.invoiceMessage, "Payment has been recorded. Complete Pickup is now unlocked.");
+      }
     }
 
     function updateWorkOrderStatus(workOrderId, nextStatus) {
@@ -1585,6 +1972,7 @@
           const customer = findCustomer(appointment.customerId);
           const vehicle = findVehicle(appointment.vehicleId);
           const workOrder = findWorkOrderByAppointment(appointment.id);
+          const invoice = workOrder ? getInvoiceState(workOrder) : null;
           const appointmentCode = formatRecordId("APT", appointment.id);
           const workOrderCode = workOrder ? formatRecordId("WO", workOrder.id) : "WO-NOT-CREATED";
           const assignmentConflicts = getAssignmentConflictSummary(appointment);
@@ -1603,6 +1991,7 @@
                 <span class="pill">${appointment.assignedOperator || "Operator not assigned"}</span>
                 <span class="pill">${appointment.bay || "Bay not assigned"}</span>
                 <span class="pill">${appointment.notificationSentAt ? "Customer notified" : "Notification pending"}</span>
+                ${invoice ? `<span class="pill">${invoice.paid ? "Paid" : "Payment pending"}</span>` : ""}
               </div>
               <p>${appointment.bookingNote || "No booking note."}</p>
               ${assignmentConflicts.length ? `<p><strong>Scheduling issue:</strong> ${assignmentConflicts.join(" and ")}.</p>` : ""}
@@ -1612,7 +2001,8 @@
                 ${appointment.status !== APPOINTMENT_STATUS.COMPLETED && appointment.status !== APPOINTMENT_STATUS.REJECTED ? `<button type="button" class="secondary-btn" data-reassign-appointment="${appointment.id}">Reassign Bay / Operator</button>` : ""}
                 ${workOrder && workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED ? `<button type="button" class="secondary-btn" data-verify-work="${workOrder.id}">Review Work Order</button>` : ""}
                 ${workOrder && workOrder.status === WORK_ORDER_STATUS.VERIFIED ? `<button type="button" class="primary-btn" data-ready-pickup="${workOrder.id}">Notify Ready for Pickup / Payment</button>` : ""}
-                ${workOrder && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP ? `<button type="button" class="secondary-btn" data-complete-job="${workOrder.id}">Complete Pickup</button>` : ""}
+                ${workOrder && [WORK_ORDER_STATUS.VERIFIED, WORK_ORDER_STATUS.READY_FOR_PICKUP].includes(workOrder.status) ? `<button type="button" class="secondary-btn" data-open-invoice="${workOrder.id}">${invoice?.paid ? "View Invoice" : "Open Invoice / Collect Payment"}</button>` : ""}
+                ${workOrder && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP && invoice?.paid ? `<button type="button" class="secondary-btn" data-complete-job="${workOrder.id}">Complete Pickup</button>` : ""}
               </div>
             </article>
           `;
@@ -1634,6 +2024,9 @@
       });
       elements.appointmentQueueList.querySelectorAll("[data-ready-pickup]").forEach((button) => {
         button.addEventListener("click", () => adminAdvanceWorkOrder(button.dataset.readyPickup, WORK_ORDER_STATUS.READY_FOR_PICKUP));
+      });
+      elements.appointmentQueueList.querySelectorAll("[data-open-invoice]").forEach((button) => {
+        button.addEventListener("click", () => openInvoiceForWorkOrder(button.dataset.openInvoice));
       });
       elements.appointmentQueueList.querySelectorAll("[data-complete-job]").forEach((button) => {
         button.addEventListener("click", () => adminAdvanceWorkOrder(button.dataset.completeJob, WORK_ORDER_STATUS.COMPLETED));
@@ -1727,6 +2120,15 @@
 
         if (new Date(linkedAppointment.appointmentAt).getTime() > Date.now()) {
           window.alert("A future appointment cannot be marked ready for pickup.");
+          return;
+        }
+      }
+
+      if (nextStatus === WORK_ORDER_STATUS.COMPLETED) {
+        const invoice = getInvoiceState(workOrder);
+        if (!invoice.paid) {
+          openInvoiceForWorkOrder(workOrder.id, "Payment is required before pickup can be completed. Review the invoice and mark it paid first.");
+          window.alert("This work order has not been paid yet. Complete the invoice and mark it paid before completing pickup.");
           return;
         }
       }
@@ -1968,7 +2370,7 @@
 
       const adminUser = getAllUsers().find((user) => user.role === "admin" && user.email === auth?.email);
       if (!adminUser || adminUser.passwordHash !== hashPassword(password)) {
-        window.alert("Password confirmation failed. The delete action was canceled.");
+        window.alert("Password confirmation failed. The action was canceled.");
         return false;
       }
 
@@ -2455,6 +2857,7 @@
           const customer = findCustomer(appointment.customerId);
           const vehicle = findVehicle(appointment.vehicleId);
           const workOrder = findWorkOrderByAppointment(appointment.id);
+          const invoice = workOrder ? getInvoiceState(workOrder) : null;
           const availableParts = state.inventory.filter((part) => part.quantity > 0);
           return `
             <article class="list-card">
@@ -2473,6 +2876,7 @@
               <div class="stack-meta">
                 <span class="pill">Faults: ${workOrder?.faults || appointment.faults || "None logged"}</span>
                 <span class="pill">Inventory: ${appointment.inventoryUsed || "None logged"}</span>
+                ${invoice ? `<span class="pill">${invoice.paid ? "Paid" : "Payment pending"}</span>` : ""}
               </div>
               ${workOrder && isServiceUser() ? `
                 <div class="form-grid">
@@ -2506,7 +2910,8 @@
                 ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED ? `<button type="button" class="secondary-btn" data-send-back="${workOrder.id}">Send Back</button>` : ""}
                 ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED ? `<button type="button" class="secondary-btn" data-status-verified="${workOrder.id}">Verify</button>` : ""}
                 ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.VERIFIED ? `<button type="button" class="secondary-btn" data-status-ready="${workOrder.id}">Ready for Pickup</button>` : ""}
-                ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP ? `<button type="button" class="primary-btn" data-status-completed="${workOrder.id}">Complete Pickup</button>` : ""}
+                ${workOrder && auth?.role === "admin" && [WORK_ORDER_STATUS.VERIFIED, WORK_ORDER_STATUS.READY_FOR_PICKUP].includes(workOrder.status) ? `<button type="button" class="secondary-btn" data-status-open-invoice="${workOrder.id}">${invoice?.paid ? "View Invoice" : "Open Invoice / Collect Payment"}</button>` : ""}
+                ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP && invoice?.paid ? `<button type="button" class="primary-btn" data-status-completed="${workOrder.id}">Complete Pickup</button>` : ""}
               </div>
             </article>
           `;
@@ -2569,6 +2974,9 @@
       });
       elements.scheduleList.querySelectorAll("[data-status-ready]").forEach((button) => {
         button.addEventListener("click", () => adminAdvanceWorkOrder(button.dataset.statusReady, WORK_ORDER_STATUS.READY_FOR_PICKUP));
+      });
+      elements.scheduleList.querySelectorAll("[data-status-open-invoice]").forEach((button) => {
+        button.addEventListener("click", () => openInvoiceForWorkOrder(button.dataset.statusOpenInvoice));
       });
       elements.scheduleList.querySelectorAll("[data-status-completed]").forEach((button) => {
         button.addEventListener("click", () => adminAdvanceWorkOrder(button.dataset.statusCompleted, WORK_ORDER_STATUS.COMPLETED));
@@ -2967,6 +3375,7 @@
         renderInventory();
         renderAdminStatusBoard();
         renderAppointmentQueue();
+        renderInvoicePanel();
         renderSearchResults();
       }
       if (isCustomerUser()) {
@@ -3182,7 +3591,15 @@
           startedAt: "",
           readyForPickupAt: "",
           completedAt: "",
-          verifiedAt: ""
+          verifiedAt: "",
+          invoice: {
+            laborCost: 0,
+            otherCost: 0,
+            otherDescription: "",
+            paid: false,
+            paidAt: "",
+            paidBy: ""
+          }
         });
         syncAppointmentStatusFromWorkOrder({ appointmentId }, WORK_ORDER_STATUS.ASSIGNED, timestamp);
         setFormMessage(elements.workOrderMessage, "Linked work order created. Use Scheduling when the operator is ready to start or complete the job.");
@@ -3238,6 +3655,33 @@
 
     elements.inventoryCancelButton?.addEventListener("click", () => {
       resetInventoryForm();
+    });
+
+    elements.invoiceForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveInvoiceDraft();
+    });
+
+    elements.invoiceAddMaterialButton?.addEventListener("click", () => {
+      const workOrderId = String(elements.invoiceWorkOrderIdField?.value || selectedInvoiceWorkOrderId || "");
+      if (!workOrderId) {
+        window.alert("Select a work order before adding materials to the invoice.");
+        return;
+      }
+
+      const partId = String(elements.invoiceMaterialSelect?.value || "");
+      const quantity = String(elements.invoiceMaterialQuantityField?.value || "1");
+      if (!partId) {
+        window.alert("Choose an inventory item to add.");
+        return;
+      }
+
+      invoicePanelNotice = "Material added to the invoice from inventory.";
+      addInventoryToWorkOrder(workOrderId, partId, quantity);
+    });
+
+    elements.invoiceMarkPaidButton?.addEventListener("click", () => {
+      markInvoicePaid();
     });
 
     elements.vehicleVin.addEventListener("input", validateVINInput);
