@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Torque Garage Final Report</title>
+  <style>
+    body {
+      font-family: "Times New Roman", serif;
+      font-size: 12pt;
+      line-height: 1.45;
+      margin: 1in;
+      color: #111;
+    }
+    h1, h2, h3 {
+      font-family: Arial, sans-serif;
+      color: #1f3e5a;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+    }
+    h1 {
+      font-size: 22pt;
+      text-align: center;
+      margin-top: 0;
+    }
+    h2 { font-size: 16pt; }
+    h3 { font-size: 13pt; }
+    p { margin: 0 0 10pt 0; }
+    ul, ol { margin: 0 0 10pt 22pt; }
+    li { margin-bottom: 4pt; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8pt 0 12pt 0;
+    }
+    th, td {
+      border: 1px solid #777;
+      padding: 6pt;
+      vertical-align: top;
+    }
+    th {
+      background: #e9eef2;
+      text-align: left;
+      font-family: Arial, sans-serif;
+    }
+    .title-block {
+      text-align: center;
+      margin-top: 80pt;
+      margin-bottom: 110pt;
+    }
+    .meta {
+      text-align: center;
+      font-size: 11pt;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .note {
+      font-style: italic;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="title-block">
+    <h1>Torque Garage Public Prototype</h1>
+    <p><strong>Final Report</strong></p>
+    <p class="meta">Beo, Cipriano II (Member 1)</p>
+    <p class="meta">Asmerom, Birkti (Member 2)</p>
+    <p class="meta">Hwang, Ryan (Member 3)</p>
+    <p class="meta">University of Maryland Global Campus</p>
+    <p class="meta">CMSC 495: Computer Science Capstone</p>
+    <p class="meta">Dr. James Huskins</p>
+    <p class="meta">May 4, 2026</p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <h2>Table of Contents</h2>
+  <ol>
+    <li>Introduction</li>
+    <li>Process Overview</li>
+    <li>Requirements Specification</li>
+    <li>Project Design</li>
+    <li>Project Evaluation</li>
+    <li>Design and Alternate Designs</li>
+    <li>Development History</li>
+    <li>Discussion</li>
+    <li>Conclusion</li>
+    <li>Acknowledgement</li>
+    <li>References</li>
+    <li>Appendix</li>
+    <li>System Specification</li>
+    <li>User Guide</li>
+    <li>Other Appendices</li>
+  </ol>
+
+  <h2>1. Introduction</h2>
+  <p>
+    Torque Garage Public Prototype is a browser-based automotive service management system created to simulate
+    the day-to-day workflow of a small independent repair shop. The project addresses a common problem described
+    in the original project plan: many small auto shops still rely on fragmented paper records, disconnected
+    spreadsheets, and manual communication, which increases the chance of scheduling conflicts, data loss, and
+    inefficient inventory handling (Beo, Asmerom, &amp; Hwang, 2025).
+  </p>
+  <p>
+    The original concept focused on building a practical web-based system that centralizes customer records,
+    vehicle information, service tracking, scheduling, inventory monitoring, and loyalty-related workflow
+    into one interface. As the project evolved, the implementation shifted toward a static but highly functional
+    frontend prototype that still preserves the central goal of validating real repair-shop operations before
+    full backend deployment (Beo, Asmerom, &amp; Hwang, 2026a).
+  </p>
+  <p>
+    The current public version supports three roles: admin, operator, and customer. It demonstrates customer
+    management, vehicle registration, appointment intake, operator assignment, work-order progression, inventory
+    usage, invoice checkout, and a payment gate that prevents pickup completion until a work order has been
+    marked paid. This final report integrates material from the team’s project plan, design report, source-code
+    writeup, user guide, and earlier final-report draft into one detailed and comprehensive submission.
+  </p>
+
+  <h2>2. Process Overview</h2>
+  <p>
+    The team followed an iterative development process influenced by Agile and Scrum principles. According to
+    the project design document, one-week sprint cycles were chosen because the team was small, the project
+    requirements were likely to evolve, and incremental delivery allowed each feature area to be tested and
+    corrected before additional complexity was added (Beo et al., 2026a). This approach aligned well with
+    the staged nature of the application: login, customer management, vehicle tracking, appointments, operator
+    workflow, and inventory management could each be developed as visible modules.
+  </p>
+  <h3>Approach</h3>
+  <ul>
+    <li>Begin with a browser-based prototype rather than a full-stack deployment so the team could validate interface and workflow decisions early.</li>
+    <li>Use seeded demo users and seeded records to support repeatable testing and immediate demonstrations.</li>
+    <li>Develop role-based visibility and workflow transitions in small increments rather than all at once.</li>
+    <li>Use testing feedback to tighten workflow gates, especially in scheduling, inventory deduction, and pickup completion.</li>
+  </ul>
+  <h3>Tools and Artifacts Used</h3>
+  <ul>
+    <li>HTML, CSS, and Vanilla JavaScript for interface, styling, and application logic</li>
+    <li>Browser localStorage for lightweight JSON-based persistence during the MVP phase</li>
+    <li>Git and GitHub for source control and collaboration</li>
+    <li>VS Code, shared formatting conventions, and project documentation artifacts from each course phase (Beo et al., 2026c)</li>
+    <li>Project Plan, Project Design, User Guide, Source Code deliverable, and prior Final Report draft as reference artifacts</li>
+  </ul>
+  <h3>Summary of Individual Contributions</h3>
+  <table>
+    <tr>
+      <th>Team Member</th>
+      <th>Role(s)</th>
+      <th>Summary of Contribution</th>
+    </tr>
+    <tr>
+      <td>Beo, Cipriano II</td>
+      <td>Project Manager, Frontend Developer</td>
+      <td>Led planning and sprint coordination, helped build UI features, dashboard layout, customer-facing views, and integration of major frontend components (Beo et al., 2025; Beo et al., 2026a).</td>
+    </tr>
+    <tr>
+      <td>Asmerom, Birkti</td>
+      <td>Frontend Developer, Backend Developer</td>
+      <td>Supported data-model planning, service-module thinking, frontend forms, and system documentation, including the user-guide and source-code materials (Beo et al., 2026a; Beo et al., 2026c).</td>
+    </tr>
+    <tr>
+      <td>Hwang, Ryan</td>
+      <td>QA Lead, Backend Developer</td>
+      <td>Prepared testing strategy, validation thinking, sprint-level QA responsibilities, and work related to application logic, especially in inventory and work-order behavior (Beo et al., 2025; Beo et al., 2026a).</td>
+    </tr>
+  </table>
+
+  <h2>3. Requirements Specification</h2>
+  <h3>Functional Requirements</h3>
+  <p>
+    The project design and plan consistently emphasized core service-desk functionality over advanced enterprise
+    features. The final implemented prototype fulfills or simulates the following major functional requirements,
+    derived from the team’s planning documents and refined through later implementation work (Beo et al., 2025;
+    Beo et al., 2026a):
+  </p>
+  <ul>
+    <li>The system shall support login for admin, operator, and customer users.</li>
+    <li>The system shall enforce role-based access and limit features by user type.</li>
+    <li>The system shall allow admin users to create, view, edit, and delete customer records.</li>
+    <li>The system shall allow admin users to create, edit, and delete vehicle records linked to customers.</li>
+    <li>The system shall allow admin users to manage operator accounts.</li>
+    <li>The system shall allow customers and admin users to create appointments.</li>
+    <li>The system shall allow admin users to assign appointments to an operator and service bay.</li>
+    <li>The system shall create and track work orders linked to appointments.</li>
+    <li>The system shall allow operators to update work notes, mileage, diagnostic codes, and job status.</li>
+    <li>The system shall deduct inventory when materials are consumed by a work order.</li>
+    <li>The system shall allow invoice preparation with labor, inventory-based materials, and other charges.</li>
+    <li>The system shall require payment confirmation before admin can complete pickup.</li>
+    <li>The system shall let customers view customer-safe appointment and service updates.</li>
+  </ul>
+  <h3>Non-Functional Requirements</h3>
+  <ul>
+    <li>Performance: The interface should load quickly under normal browser use.</li>
+    <li>Usability: The system should be understandable to non-technical shop users and should work on desktop and mobile browsers.</li>
+    <li>Security: Passwords should be protected through hashing and sessions should expire after inactivity (Beo et al., 2026a).</li>
+    <li>Reliability: Data should persist after refresh in the browser environment.</li>
+    <li>Maintainability: The codebase should remain organized, documented, and modular enough to support future backend migration (Beo et al., 2026c).</li>
+  </ul>
+  <h3>Scope Adjustments</h3>
+  <p>
+    The project plan explicitly marked payment processing, multi-location support, advanced analytics, and
+    SMS/email reminders as out of scope for the initial course delivery (Beo et al., 2025). The final build
+    remained consistent with that decision in one important way: it supports invoice and payment status logic
+    inside the prototype, but it does not perform live payment transactions or external billing integration.
+  </p>
+
+  <h2>4. Project Design</h2>
+  <h3>Architecture and Implementation</h3>
+  <p>
+    The earlier design document proposed React, Node.js, MySQL, JWT-based authentication, and cloud hosting
+    for a fuller implementation path (Beo et al., 2026a). The final course implementation deliberately simplified
+    that architecture into a static frontend system using HTML, CSS, JavaScript, and localStorage. This change
+    reduced infrastructure complexity and made it easier to deliver a polished working prototype in the available
+    time.
+  </p>
+  <p>
+    The implementation now follows a browser-side architecture:
+  </p>
+  <ul>
+    <li><strong>index.html</strong>: Defines the UI structure, forms, dashboard panels, and role-based sections.</li>
+    <li><strong>style.css</strong>: Defines layout grids, panel styling, responsive behavior, validation styling, and dashboard presentation.</li>
+    <li><strong>script.js</strong>: Handles login logic, state persistence, rendering, validation, scheduling, inventory deduction, invoice checkout, and payment gating.</li>
+  </ul>
+  <h3>How the System Works</h3>
+  <ol>
+    <li>A user logs in with the appropriate role and seeded credential set.</li>
+    <li>The system loads and normalizes data from localStorage.</li>
+    <li>Admin manages customers, operators, vehicles, inventory, and appointments.</li>
+    <li>Appointments are assigned to an operator and bay, which creates a linked work order.</li>
+    <li>Operators update the work order and record materials used by SKU.</li>
+    <li>Admin verifies completed work and moves the job to ready-for-pickup.</li>
+    <li>Admin prepares an invoice, confirms payment, and only then completes pickup.</li>
+  </ol>
+  <h3>Data Model Summary</h3>
+  <p>
+    The design report and Phase I source-code document described a localStorage-backed data model that mirrors
+    the structure of a future relational system (Beo et al., 2026a; Beo et al., 2026c). The final prototype
+    stores JSON collections for users, customers, vehicles, appointments, work orders, work-order parts,
+    inventory, and loyalty records. This structure preserves the project’s original conceptual model while
+    keeping the browser-based MVP lightweight.
+  </p>
+  <h3>Pseudocode and Algorithm References</h3>
+  <p>
+    The pseudocode patterns that influenced the final implementation came from the Phase I source-code document,
+    especially in the persistence layer, VIN validation logic, and customer and vehicle validation examples
+    (Beo et al., 2026c). While the current code has evolved beyond that initial phase, the final report still
+    cites those pseudocode-oriented materials because they document the team’s original implementation logic and
+    validation structure.
+  </p>
+
+  <h2>5. Project Evaluation</h2>
+  <h3>Testing Strategy</h3>
+  <p>
+    Testing focused on user-facing behavior, validation rules, role-based visibility, workflow transitions,
+    and persistence. The team’s earlier documents already emphasized manual functional testing and validation
+    of localStorage behavior, login behavior, CRUD operations, VIN checks, and required-field handling
+    (Beo et al., 2026c). The final system extended that strategy to include appointment conflict handling,
+    operator assignment rules, inventory deduction by SKU, and invoice payment gating.
+  </p>
+  <h3>Test Plan and Results Summary</h3>
+  <table>
+    <tr>
+      <th>Category</th>
+      <th>Representative Result</th>
+    </tr>
+    <tr>
+      <td>Authentication</td>
+      <td>Admin, operator, and customer login succeed with valid seeded credentials; invalid credentials are rejected.</td>
+    </tr>
+    <tr>
+      <td>Role-Based Access</td>
+      <td>Customer view is restricted to portal data; operator view is restricted to service operations.</td>
+    </tr>
+    <tr>
+      <td>Customer and Vehicle CRUD</td>
+      <td>Create, update, and delete behaviors function correctly with persistence after refresh.</td>
+    </tr>
+    <tr>
+      <td>Validation</td>
+      <td>VIN checks, required fields, positive mileage, and appointment time rules behave as expected.</td>
+    </tr>
+    <tr>
+      <td>Scheduling</td>
+      <td>Bay conflicts and operator double-booking are surfaced and reassignment is supported.</td>
+    </tr>
+    <tr>
+      <td>Inventory</td>
+      <td>Materials logged by SKU deduct inventory correctly and can be reflected in work-order/invoice data.</td>
+    </tr>
+    <tr>
+      <td>Checkout</td>
+      <td>Pickup completion is blocked until invoice payment is recorded through admin password confirmation.</td>
+    </tr>
+  </table>
+  <h3>Validation Using Seeded Data</h3>
+  <p>
+    Seeded data remained a major validation asset throughout the project. Known-valid credentials, VINs, customer
+    emails, and inventory SKUs allowed the team to start from trusted values and then alter one rule at a time.
+    This was especially helpful when validating invalid VIN length, invalid email format, duplicate scheduling,
+    and later invoice-and-pickup state behavior.
+  </p>
+
+  <h2>6. Design and Alternate Designs</h2>
+  <p>
+    Several design changes were made after testing and review. These changes were not arbitrary refinements;
+    they corrected workflow issues that only became clear once the system was exercised through realistic
+    user scenarios.
+  </p>
+  <ul>
+    <li>The original higher-complexity React/Node/MySQL architecture was replaced by a simpler HTML/CSS/JavaScript/localStorage architecture to improve feasibility and deliver a stable MVP (Beo et al., 2026a).</li>
+    <li>Logout behavior was improved so it feels immediate to users while background cleanup runs afterward.</li>
+    <li>Operator management was added to the admin workflow instead of relying on a single static operator record.</li>
+    <li>Scheduling rules were tightened so same-time conflicts for operator and bay occupancy are detected and corrected.</li>
+    <li>Work-order inventory logging changed from name-based entry to SKU-based entry for better consistency with inventory records.</li>
+    <li>An invoice checkout panel was added because testing exposed the need to verify payment before completing pickup.</li>
+  </ul>
+  <p>
+    Alternate designs considered or originally planned included a true backend API, database-backed persistence,
+    real notifications, and cloud deployment. Those remain valuable future directions, but the course prototype
+    benefited more from reliable visible workflow behavior than from unfinished infrastructure.
+  </p>
+
+  <h2>7. Development History: Project Timeline</h2>
+  <table>
+    <tr>
+      <th>Phase</th>
+      <th>Integrated Development Summary</th>
+    </tr>
+    <tr>
+      <td>Planning</td>
+      <td>Defined problem, scope, risks, roles, communication plan, and initial feature priorities in the project plan (Beo et al., 2025).</td>
+    </tr>
+    <tr>
+      <td>Design</td>
+      <td>Established objectives, methodology, technology stack, architecture, data model, and evaluation plan in the design report (Beo et al., 2026a).</td>
+    </tr>
+    <tr>
+      <td>Phase I Foundation</td>
+      <td>Built the localStorage service concept, validation structure, customer and vehicle foundations, and documented pseudocode/source logic (Beo et al., 2026c).</td>
+    </tr>
+    <tr>
+      <td>Workflow Expansion</td>
+      <td>Added appointments, work-order progression, operator-facing updates, and inventory management.</td>
+    </tr>
+    <tr>
+      <td>Refinement</td>
+      <td>Improved role restrictions, seeded operators, admin booking, schedule conflict handling, and layout consistency.</td>
+    </tr>
+    <tr>
+      <td>Finalization</td>
+      <td>Added invoice and payment gating, comprehensive documentation, user guide integration, and final-report consolidation.</td>
+    </tr>
+  </table>
+
+  <h2>8. Discussion</h2>
+  <h3>Lessons Learned</h3>
+  <ul>
+    <li>Working through visible workflows exposed design problems faster than abstract planning alone.</li>
+    <li>Seeded data made validation more disciplined because the team could compare valid and invalid cases directly.</li>
+    <li>Role-based access affects not only security but also information architecture and user confidence.</li>
+    <li>Operational systems often need gating logic, such as payment confirmation, to enforce real business rules rather than just show status labels.</li>
+  </ul>
+  <h3>Design Strengths</h3>
+  <ul>
+    <li>Clear separation of admin, operator, and customer responsibilities</li>
+    <li>Readable dashboard organization and responsive layout</li>
+    <li>Practical workflow from appointment to work order to pickup</li>
+    <li>Strong validation on VINs, scheduling, and inventory-linked usage</li>
+    <li>Simple prototype architecture that is easy to demonstrate and extend</li>
+  </ul>
+  <h3>Limitations</h3>
+  <ul>
+    <li>No backend database or multi-user synchronization</li>
+    <li>No live payment processing or third-party messaging integration</li>
+    <li>localStorage-based persistence is suitable for prototype use but not enterprise deployment</li>
+    <li>Advanced analytics and enterprise reporting remain out of scope</li>
+  </ul>
+  <h3>Suggestions for Future Improvement</h3>
+  <ul>
+    <li>Migrate state persistence to a true backend and relational database.</li>
+    <li>Add invoice history, receipt export, and customer-facing billing history.</li>
+    <li>Support email/SMS notifications and multi-user concurrency.</li>
+    <li>Expand reporting dashboards and business analytics.</li>
+    <li>Introduce configurable technician skills, bay utilization reporting, and parts reorder workflows.</li>
+  </ul>
+
+  <h2>9. Conclusion</h2>
+  <p>
+    Torque Garage Public Prototype successfully delivers a realistic automotive service management workflow in
+    a lightweight browser-based system. Although the final implementation is simpler than the original planned
+    stack, it preserves the project’s core goals: organizing customer and vehicle data, improving appointment
+    handling, tracking inventory use, enforcing role-based workflow, and validating practical repair-shop
+    operations. The final system also demonstrates an important business rule that emerged during development:
+    a vehicle should not be marked as picked up until invoice payment is confirmed. This makes the prototype
+    a strong foundation for future full-stack development.
+  </p>
+
+  <h2>10. Acknowledgement (Optional)</h2>
+  <p>
+    The team may use this section to acknowledge instructor guidance, peer feedback, or outside review support
+    received during project planning, implementation, testing, or final presentation preparation.
+  </p>
+
+  <h2>11. References</h2>
+  <ul>
+    <li>Beo, C. II, Asmerom, B., &amp; Hwang, R. (2025). <em>Project Plan Group 1</em>. University of Maryland Global Campus.</li>
+    <li>Beo, C. II, Asmerom, B., &amp; Hwang, R. (2026a). <em>Project Design Group 1</em>. University of Maryland Global Campus.</li>
+    <li>Beo, C. II, Asmerom, B., &amp; Hwang, R. (2026b). <em>Project Final Report</em>. University of Maryland Global Campus.</li>
+    <li>Beo, C. II, Asmerom, B., &amp; Hwang, R. (2026c). <em>Project Phase I Code</em>. University of Maryland Global Campus.</li>
+    <li>Beo, C. II, Asmerom, B., &amp; Hwang, R. (2026d). <em>Project User Guide</em>. University of Maryland Global Campus.</li>
+    <li>Tsui, F., Karam, O., &amp; Bernal, B. (2014). <em>Essentials of Software Engineering</em>.</li>
+  </ul>
+
+  <h2>12. Appendix</h2>
+  <h3>Appendix A: Selected Pseudocode References</h3>
+  <p>
+    The following pseudocode summaries are adapted from the Phase I source-code document and are cited here
+    because they influenced the final implementation approach for persistence, VIN validation, and form
+    validation (Beo et al., 2026c).
+  </p>
+  <p><strong>Persistence pseudocode</strong></p>
+  <p class="note">Source: Beo et al. (2026c), state and persistence section.</p>
+  <p>1. Save the in-memory state object as JSON into localStorage.</p>
+  <p>2. Save authentication/session information separately.</p>
+  <p>3. On startup, attempt to load state from localStorage.</p>
+  <p>4. If no state exists or parsing fails, create demo state instead.</p>
+  <p><strong>VIN validation pseudocode</strong></p>
+  <p class="note">Source: Beo et al. (2026c), VIN validation section.</p>
+  <p>1. Read the VIN value and normalize it to uppercase.</p>
+  <p>2. If empty, clear the VIN error and allow the form to continue.</p>
+  <p>3. If the VIN is not 17 valid characters and includes forbidden letters, mark the field invalid.</p>
+  <p>4. Show the VIN error message and block save.</p>
+  <p><strong>Customer and vehicle form validation pseudocode</strong></p>
+  <p class="note">Source: Beo et al. (2026c), customer and vehicle validation examples.</p>
+  <p>1. Read required field values from the form.</p>
+  <p>2. If any required field is missing, show a form message and block submission.</p>
+  <p>3. If numeric values are invalid, show an error and block submission.</p>
+  <p>4. Clear the form message and continue only when validation passes.</p>
+  <h3>Appendix B: Integrated Source Documents Used in This Report</h3>
+  <ul>
+    <li>Project Plan Group 1</li>
+    <li>Project Design Group 1</li>
+    <li>Project Final Report draft</li>
+    <li>Project User Guide</li>
+    <li>Project Phase I Code</li>
+  </ul>
+
+  <h2>13. System Specification</h2>
+  <h3>Technical Specifications</h3>
+  <ul>
+    <li>Frontend: HTML5, CSS3, Vanilla JavaScript (ES6+)</li>
+    <li>Persistence: Browser localStorage with JSON-backed record collections</li>
+    <li>Deployment Mode: Static browser-based prototype</li>
+    <li>Primary Files: index.html, style.css, script.js</li>
+  </ul>
+  <h3>Minimum Hardware and Software Requirements</h3>
+  <ul>
+    <li>A computer, laptop, tablet, or smartphone capable of running a modern browser</li>
+    <li>Chrome, Edge, Firefox, or Safari with JavaScript enabled</li>
+    <li>Sufficient browser storage for local demo data</li>
+    <li>No dedicated backend server required for the public prototype build</li>
+  </ul>
+
+  <h2>14. User Guide</h2>
+  <p>
+    The integrated user guide describes how admin, operator, and customer users access and work within the
+    system (Beo et al., 2026d). The application may be used locally by opening the HTML file directly in a
+    browser or through a hosted URL if deployed. The interface requires only basic browser-navigation skill
+    and supports keyboard, mouse, trackpad, and touch input.
+  </p>
+  <h3>Role Summary</h3>
+  <ul>
+    <li><strong>Admin</strong>: Manages customers, operators, vehicles, inventory, appointment assignment, invoices, and pickup completion.</li>
+    <li><strong>Operator</strong>: Updates active jobs, vehicle service information, notes, and inventory usage tied to the work order.</li>
+    <li><strong>Customer</strong>: Adds vehicles, books appointments, views visit updates, and manages password information.</li>
+  </ul>
+  <h3>Seeded Credentials</h3>
+  <ul>
+    <li>Admin: admin@icloud.com / admin123</li>
+    <li>Operator: operator@icloud.com / operator123</li>
+    <li>Additional operators: alex.rivera@icloud.com, sam.lee@icloud.com, chris.hall@icloud.com / operator123</li>
+    <li>Customer example: elon.musk@email.com / customer123</li>
+  </ul>
+  <h3>High-Level Usage Flow</h3>
+  <ol>
+    <li>Open the application and log in with the correct role and credential set.</li>
+    <li>Admin creates or manages shop records and appointments.</li>
+    <li>Operator updates assigned jobs and logs work-order usage.</li>
+    <li>Customer monitors appointment status through the portal.</li>
+    <li>Admin prepares invoice, records payment, and then completes pickup.</li>
+  </ol>
+
+  <h2>15. Other Appendices (Optional)</h2>
+  <ul>
+    <li>Detailed functional test-plan spreadsheet or checklist</li>
+    <li>Screenshots of admin, operator, customer, and invoice views</li>
+    <li>Expanded sprint history or team meeting summaries</li>
+    <li>Annotated validation scenarios using seeded data</li>
+  </ul>
+</body>
+</html>

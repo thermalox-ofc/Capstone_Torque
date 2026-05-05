@@ -7,6 +7,7 @@
     const SESSION_PERSIST_INTERVAL_MS = 60 * 1000;
     const DEFAULT_CUSTOMER_PASSWORD = "customer123";
     const DEFAULT_OPERATOR_PASSWORD = "operator123";
+    const MIN_PASSWORD_LENGTH = 6;
     const DEFAULT_CUSTOMER_PASSWORD_HASH = "1ef916ed";
     const DEMO_PASSWORD_HASHES = {
       admin: "185030e4",
@@ -301,6 +302,10 @@
     // =============================
     const elements = {
       loginForm: document.getElementById("loginForm"),
+      loginRole: document.getElementById("loginRole"),
+      loginEmailField: document.getElementById("loginEmailField"),
+      loginPasswordField: document.getElementById("loginPasswordField"),
+      loginSubmitButton: document.getElementById("loginSubmitButton"),
       loginMessage: document.getElementById("loginMessage"),
       logoutButton: document.getElementById("logoutButton"),
       sessionName: document.getElementById("sessionName"),
@@ -363,6 +368,7 @@
       customerNewPassword: document.getElementById("customerNewPassword"),
       customerConfirmPassword: document.getElementById("customerConfirmPassword"),
       customerPasswordMessage: document.getElementById("customerPasswordMessage"),
+      customerPasswordSubmitButton: document.getElementById("customerPasswordSubmitButton"),
       customerVehicleList: document.getElementById("customerVehicleList"),
       customerVehicleForm: document.getElementById("customerVehicleForm"),
       customerVehicleVin: document.getElementById("customerVehicleVin"),
@@ -374,11 +380,13 @@
       customerVehicleWarrantyField: document.getElementById("customerVehicleWarrantyField"),
       customerVehicleCodesField: document.getElementById("customerVehicleCodesField"),
       customerVehicleFormMessage: document.getElementById("customerVehicleFormMessage"),
+      customerVehicleSubmitButton: document.getElementById("customerVehicleSubmitButton"),
       customerBookingForm: document.getElementById("customerBookingForm"),
       customerBookingVehicleSelect: document.getElementById("customerBookingVehicleSelect"),
       customerBookingServiceSelect: document.getElementById("customerBookingServiceSelect"),
       customerAppointmentAt: document.getElementById("customerAppointmentAt"),
       customerBookingMessage: document.getElementById("customerBookingMessage"),
+      customerBookingSubmitButton: document.getElementById("customerBookingSubmitButton"),
       customerAppointmentsTitle: document.getElementById("customerAppointmentsTitle"),
       customerAppointmentList: document.getElementById("customerAppointmentList"),
       customerMaintenanceList: document.getElementById("customerMaintenanceList"),
@@ -390,6 +398,7 @@
       adminBookingServiceSelect: document.getElementById("adminBookingServiceSelect"),
       adminAppointmentAt: document.getElementById("adminAppointmentAt"),
       adminBookingMessage: document.getElementById("adminBookingMessage"),
+      adminBookingSubmitButton: document.getElementById("adminBookingSubmitButton"),
       adminStatusBoard: document.getElementById("adminStatusBoard"),
       invoiceForm: document.getElementById("invoiceForm"),
       invoiceWorkOrderIdField: document.getElementById("invoiceWorkOrderIdField"),
@@ -641,29 +650,316 @@
       element.textContent = "";
     }
 
-    function validateCustomerForm() {
+    function isValidEmail(value) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+    }
+
+    function setFieldInvalidState(field, isInvalid) {
+      if (!field) return;
+      field.classList.toggle("is-invalid", Boolean(isInvalid));
+    }
+
+    function validateEmailField(field, { required = true } = {}) {
+      if (!field) return true;
+      const normalizedValue = String(field.value || "").trim().toLowerCase();
+      field.value = normalizedValue;
+
+      if (!normalizedValue) {
+        setFieldInvalidState(field, required);
+        return !required;
+      }
+
+      const valid = isValidEmail(normalizedValue);
+      setFieldInvalidState(field, !valid);
+      return valid;
+    }
+
+    function getPasswordComplexityMessage(password) {
+      const normalized = String(password || "").trim();
+      if (normalized.length < MIN_PASSWORD_LENGTH) {
+        return `New password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+      }
+      if (!/\d/.test(normalized) || !/[^A-Za-z0-9]/.test(normalized)) {
+        return "Weak password. New password must include at least 1 number and 1 special symbol.";
+      }
+      return "";
+    }
+
+    function updateSubmitButtonState(button, isEnabled) {
+      if (!button) return;
+      button.disabled = !isEnabled;
+      button.setAttribute("aria-disabled", String(!isEnabled));
+    }
+
+    function validateLoginFormState() {
+      const emailValid = validateEmailField(elements.loginEmailField);
+      const passwordValid = String(elements.loginPasswordField?.value || "").trim().length > 0;
+      const roleValid = Boolean(elements.loginRole?.value);
+      return emailValid && passwordValid && roleValid;
+    }
+
+    function validateCustomerPasswordFields({ interactive = false } = {}) {
+      const customer = getCurrentCustomer();
+      const currentPassword = String(elements.customerCurrentPassword?.value || "");
+      const newPassword = String(elements.customerNewPassword?.value || "").trim();
+      const confirmPassword = String(elements.customerConfirmPassword?.value || "").trim();
+
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, "Complete all password fields before saving.");
+        }
+        return false;
+      }
+
+      if (!customer) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, "Customer profile not found.");
+        }
+        return false;
+      }
+
+      const customerUser = state.users.find((user) => user.customerId === customer.id && user.role === "customer");
+      const savedPasswordHash = customerUser?.passwordHash || DEFAULT_CUSTOMER_PASSWORD_HASH;
+      const currentMatches = hashPassword(currentPassword) === savedPasswordHash;
+      setFieldInvalidState(elements.customerCurrentPassword, !currentMatches);
+      if (!currentMatches) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, "Current password is incorrect.");
+        }
+        return false;
+      }
+
+      const complexityMessage = getPasswordComplexityMessage(newPassword);
+      const passwordStrong = !complexityMessage;
+      setFieldInvalidState(elements.customerNewPassword, !passwordStrong);
+      if (!passwordStrong) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, complexityMessage);
+        }
+        return false;
+      }
+
+      const passwordsMatch = newPassword === confirmPassword;
+      setFieldInvalidState(elements.customerConfirmPassword, !passwordsMatch);
+      if (!passwordsMatch) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, "New password and confirmation do not match.");
+        }
+        return false;
+      }
+
+      if (interactive) {
+        clearFormMessage(elements.customerPasswordMessage);
+      }
+      return true;
+    }
+
+    function validateCustomerBookingFormState() {
+      const appointmentAtValue = String(elements.customerAppointmentAt?.value || "");
+      const appointmentAt = new Date(appointmentAtValue);
+      if (!elements.customerBookingVehicleSelect?.value || elements.customerBookingVehicleSelect?.disabled) return false;
+      if (!elements.customerBookingServiceSelect?.value || elements.customerBookingServiceSelect?.disabled) return false;
+      if (!appointmentAtValue || Number.isNaN(appointmentAt.getTime())) return false;
+      if (appointmentAt < new Date()) return false;
+      if (!isOnTheHour(appointmentAt)) return false;
+      if (!isWithinBusinessHours(appointmentAt)) return false;
+      return !hasDuplicateAppointment(String(elements.customerBookingVehicleSelect.value), appointmentAt.toISOString());
+    }
+
+    function validateAdminBookingFormState() {
+      const customerId = String(elements.adminBookingCustomerSelect?.value || "");
+      const vehicleId = String(elements.adminBookingVehicleSelect?.value || "");
+      const serviceType = String(elements.adminBookingServiceSelect?.value || "");
+      const appointmentAtValue = String(elements.adminAppointmentAt?.value || "");
+      const appointmentAt = new Date(appointmentAtValue);
+      if (!customerId || elements.adminBookingCustomerSelect?.disabled) return false;
+      if (!vehicleId || elements.adminBookingVehicleSelect?.disabled) return false;
+      if (!serviceType) return false;
+      if (!appointmentAtValue || Number.isNaN(appointmentAt.getTime())) return false;
+      if (!isOnTheHour(appointmentAt)) return false;
+      if (!isWithinBusinessHours(appointmentAt)) return false;
+      return !hasDuplicateAppointment(vehicleId, appointmentAt.toISOString());
+    }
+
+    function validateInventoryFormState() {
+      const name = String(elements.inventoryNameField?.value || "").trim();
+      const sku = String(elements.inventorySkuField?.value || "").trim();
+      const quantity = Number(elements.inventoryQuantityField?.value);
+      const reorderPoint = Number(elements.inventoryReorderField?.value);
+      const price = Number(elements.inventoryPriceField?.value);
+      if (!name || !sku) return false;
+      if (!Number.isFinite(quantity) || quantity < 0) return false;
+      if (!Number.isFinite(reorderPoint) || reorderPoint < 0) return false;
+      if (!Number.isFinite(price) || price < 0) return false;
+      return true;
+    }
+
+    function updateLoginValidationState() {
+      const isValid = validateLoginFormState();
+      updateSubmitButtonState(elements.loginSubmitButton, isValid);
+      if (!String(elements.loginEmailField?.value || "").trim()) {
+        elements.loginMessage.textContent = "";
+      } else if (!isValidEmail(elements.loginEmailField?.value)) {
+        elements.loginMessage.textContent = "Enter a valid email address to sign in.";
+      } else if (!String(elements.loginPasswordField?.value || "").trim()) {
+        elements.loginMessage.textContent = "Enter your password to sign in.";
+      } else {
+        elements.loginMessage.textContent = "";
+      }
+    }
+
+    function updateCustomerFormValidationState() {
+      const hasEmailValue = Boolean(String(elements.customerEmailField?.value || "").trim());
+      const emailValid = validateEmailField(elements.customerEmailField);
+      const isValid = validateCustomerForm({ interactive: false });
+      updateSubmitButtonState(elements.customerSubmitButton, isValid);
+      if (!hasEmailValue) {
+        clearFormMessage(elements.customerFormMessage);
+      } else if (!emailValid) {
+        setFormMessage(elements.customerFormMessage, "Enter a valid email address before saving.");
+      } else {
+        clearFormMessage(elements.customerFormMessage);
+      }
+    }
+
+    function updateOperatorFormValidationState() {
+      const hasEmailValue = Boolean(String(elements.operatorEmailField?.value || "").trim());
+      const emailValid = validateEmailField(elements.operatorEmailField);
+      const isValid = validateOperatorForm({ interactive: false });
+      updateSubmitButtonState(elements.operatorSubmitButton, isValid);
+      if (!hasEmailValue) {
+        clearFormMessage(elements.operatorFormMessage);
+      } else if (!emailValid) {
+        setFormMessage(elements.operatorFormMessage, "Enter a valid operator email before saving.");
+      } else {
+        clearFormMessage(elements.operatorFormMessage);
+      }
+    }
+
+    function updateVehicleFormValidationState() {
+      const isValid = validateVehicleForm({ interactive: false });
+      updateSubmitButtonState(elements.vehicleSubmitButton, isValid);
+      if (!String(elements.vehicleVin?.value || "").trim()) {
+        clearFormMessage(elements.vehicleFormMessage);
+      } else if (!validateVINInput()) {
+        setFormMessage(elements.vehicleFormMessage, "Enter a valid VIN before saving.");
+      } else {
+        clearFormMessage(elements.vehicleFormMessage);
+      }
+    }
+
+    function updateCustomerVehicleValidationState() {
+      const isValid = validateCustomerVehicleForm({ interactive: false });
+      updateSubmitButtonState(elements.customerVehicleSubmitButton, isValid);
+      if (!String(elements.customerVehicleVin?.value || "").trim()) {
+        clearFormMessage(elements.customerVehicleFormMessage);
+      } else if (!validateCustomerPortalVIN()) {
+        setFormMessage(elements.customerVehicleFormMessage, "Enter a valid VIN before saving.");
+      } else {
+        clearFormMessage(elements.customerVehicleFormMessage);
+      }
+    }
+
+    function updateCustomerPasswordValidationState() {
+      const currentPassword = String(elements.customerCurrentPassword?.value || "");
+      const newPassword = String(elements.customerNewPassword?.value || "").trim();
+      const confirmPassword = String(elements.customerConfirmPassword?.value || "").trim();
+      const allEmpty = !currentPassword && !newPassword && !confirmPassword;
+      const isValid = validateCustomerPasswordFields({ interactive: false });
+      updateSubmitButtonState(elements.customerPasswordSubmitButton, isValid);
+
+      if (allEmpty) {
+        clearFormMessage(elements.customerPasswordMessage);
+        setFieldInvalidState(elements.customerCurrentPassword, false);
+        setFieldInvalidState(elements.customerNewPassword, false);
+        setFieldInvalidState(elements.customerConfirmPassword, false);
+        return;
+      }
+
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        setFormMessage(elements.customerPasswordMessage, "Complete all password fields before saving.");
+        return;
+      }
+
+      const complexityMessage = getPasswordComplexityMessage(newPassword);
+      if (complexityMessage) {
+        setFormMessage(elements.customerPasswordMessage, complexityMessage);
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        setFormMessage(elements.customerPasswordMessage, "New password and confirmation do not match.");
+        return;
+      }
+
+      if (!isValid) {
+        setFormMessage(elements.customerPasswordMessage, "Current password is incorrect.");
+        return;
+      }
+
+      clearFormMessage(elements.customerPasswordMessage);
+    }
+
+    function updateCustomerBookingValidationState() {
+      const isValid = validateCustomerBookingFormState();
+      updateSubmitButtonState(elements.customerBookingSubmitButton, isValid);
+    }
+
+    function updateAdminBookingValidationState() {
+      const isValid = validateAdminBookingFormState();
+      updateSubmitButtonState(elements.adminBookingSubmitButton, isValid);
+    }
+
+    function updateInventoryValidationState() {
+      const isValid = validateInventoryFormState();
+      updateSubmitButtonState(elements.inventorySubmitButton, isValid);
+    }
+
+    function validateCustomerForm({ interactive = true } = {}) {
       const name = elements.customerNameField.value.trim();
       const address = elements.customerAddressField.value.trim();
       const phone = elements.customerPhoneField.value.trim();
       const email = elements.customerEmailField.value.trim();
 
       if (!name || !address || !phone || !email) {
-        setFormMessage(elements.customerFormMessage, "Complete all required customer fields before saving.");
-        window.alert("Please complete all required customer fields.");
+        if (interactive) {
+          setFormMessage(elements.customerFormMessage, "Complete all required customer fields before saving.");
+          window.alert("Please complete all required customer fields.");
+        }
         return false;
       }
 
-      clearFormMessage(elements.customerFormMessage);
+      if (!validateEmailField(elements.customerEmailField)) {
+        if (interactive) {
+          setFormMessage(elements.customerFormMessage, "Enter a valid email address before saving.");
+          window.alert("Enter a valid email address before saving.");
+        }
+        return false;
+      }
+
+      if (interactive) {
+        clearFormMessage(elements.customerFormMessage);
+      }
       return true;
     }
 
-    function validateOperatorForm() {
+    function validateOperatorForm({ interactive = true } = {}) {
       const name = elements.operatorNameField.value.trim();
       const email = elements.operatorEmailField.value.trim().toLowerCase();
 
       if (!name || !email) {
-        setFormMessage(elements.operatorFormMessage, "Complete all required operator fields before saving.");
-        window.alert("Please complete all required operator fields.");
+        if (interactive) {
+          setFormMessage(elements.operatorFormMessage, "Complete all required operator fields before saving.");
+          window.alert("Please complete all required operator fields.");
+        }
+        return false;
+      }
+
+      if (!validateEmailField(elements.operatorEmailField)) {
+        if (interactive) {
+          setFormMessage(elements.operatorFormMessage, "Enter a valid operator email before saving.");
+          window.alert("Enter a valid operator email before saving.");
+        }
         return false;
       }
 
@@ -671,16 +967,20 @@
         user.email === email && user.id !== String(elements.operatorIdField.value || "")
       );
       if (duplicateUser) {
-        setFormMessage(elements.operatorFormMessage, "An operator with that email already exists.");
-        window.alert("An operator with that email already exists.");
+        if (interactive) {
+          setFormMessage(elements.operatorFormMessage, "An operator with that email already exists.");
+          window.alert("An operator with that email already exists.");
+        }
         return false;
       }
 
-      clearFormMessage(elements.operatorFormMessage);
+      if (interactive) {
+        clearFormMessage(elements.operatorFormMessage);
+      }
       return true;
     }
 
-    function validateVehicleForm() {
+    function validateVehicleForm({ interactive = true } = {}) {
       const customerId = elements.vehicleCustomerSelect.value;
       const year = Number(elements.vehicleYearField.value);
       const make = elements.vehicleMakeField.value.trim();
@@ -688,32 +988,42 @@
       const mileage = Number(elements.vehicleMileageField.value);
 
       if (!customerId || !elements.vehicleVin.value.trim() || !make || !model || elements.vehicleYearField.value.trim() === "" || elements.vehicleMileageField.value.trim() === "") {
-        setFormMessage(elements.vehicleFormMessage, "Complete all required vehicle fields before saving.");
-        window.alert("Please complete all required vehicle fields.");
+        if (interactive) {
+          setFormMessage(elements.vehicleFormMessage, "Complete all required vehicle fields before saving.");
+          window.alert("Please complete all required vehicle fields.");
+        }
         return false;
       }
 
       if (!validateVINInput()) {
-        setFormMessage(elements.vehicleFormMessage, "Enter a valid VIN before saving.");
-        window.alert("Enter a valid VIN before saving.");
+        if (interactive) {
+          setFormMessage(elements.vehicleFormMessage, "Enter a valid VIN before saving.");
+          window.alert("Enter a valid VIN before saving.");
+        }
         return false;
       }
 
       if (!Number.isInteger(year) || year < 1900 || year > 2099) {
-        setFormMessage(elements.vehicleFormMessage, "Enter a valid model year.");
-        window.alert("Enter a valid model year.");
+        if (interactive) {
+          setFormMessage(elements.vehicleFormMessage, "Enter a valid model year.");
+          window.alert("Enter a valid model year.");
+        }
         return false;
       }
 
       if (!Number.isFinite(mileage) || mileage < 0) {
         elements.vehicleMileageField.classList.add("is-invalid");
-        setFormMessage(elements.vehicleFormMessage, "Mileage must be a valid positive value.");
-        window.alert("Mileage must be a valid positive value.");
+        if (interactive) {
+          setFormMessage(elements.vehicleFormMessage, "Mileage must be a valid positive value.");
+          window.alert("Mileage must be a valid positive value.");
+        }
         return false;
       }
 
       elements.vehicleMileageField.classList.remove("is-invalid");
-      clearFormMessage(elements.vehicleFormMessage);
+      if (interactive) {
+        clearFormMessage(elements.vehicleFormMessage);
+      }
       return true;
     }
 
@@ -725,7 +1035,9 @@
       elements.customerIdField.value = "";
       elements.customerSubmitButton.textContent = "Save Customer";
       elements.customerCancelButton.hidden = true;
+      setFieldInvalidState(elements.customerEmailField, false);
       clearFormMessage(elements.customerFormMessage);
+      updateCustomerFormValidationState();
     }
 
     function resetOperatorForm() {
@@ -733,7 +1045,9 @@
       if (elements.operatorIdField) elements.operatorIdField.value = "";
       if (elements.operatorSubmitButton) elements.operatorSubmitButton.textContent = "Save Operator";
       if (elements.operatorCancelButton) elements.operatorCancelButton.hidden = true;
+      setFieldInvalidState(elements.operatorEmailField, false);
       if (elements.operatorFormMessage) clearFormMessage(elements.operatorFormMessage);
+      updateOperatorFormValidationState();
     }
 
     function resetVehicleForm() {
@@ -745,6 +1059,7 @@
       clearVinError();
       clearFormMessage(elements.vehicleFormMessage);
       populateCustomerSelect();
+      updateVehicleFormValidationState();
     }
 
     function resetCustomerVehicleForm() {
@@ -755,6 +1070,7 @@
       if (elements.customerVinValidationMessage) {
         elements.customerVinValidationMessage.textContent = "";
       }
+      updateCustomerVehicleValidationState();
     }
 
     function resetCustomerBookingForm() {
@@ -763,11 +1079,16 @@
       populateCustomerBookingVehicleOptions();
       populateCustomerBookingServiceOptions();
       configureAppointmentInputs();
+      updateCustomerBookingValidationState();
     }
 
     function resetCustomerPasswordForm() {
       elements.customerPasswordForm?.reset();
+      setFieldInvalidState(elements.customerCurrentPassword, false);
+      setFieldInvalidState(elements.customerNewPassword, false);
+      setFieldInvalidState(elements.customerConfirmPassword, false);
       clearFormMessage(elements.customerPasswordMessage);
+      updateCustomerPasswordValidationState();
     }
 
     function resetAdminBookingForm() {
@@ -775,6 +1096,7 @@
       clearFormMessage(elements.adminBookingMessage);
       populateAdminBookingSelects();
       configureAppointmentInputs();
+      updateAdminBookingValidationState();
     }
 
     function resetInventoryForm() {
@@ -789,6 +1111,7 @@
         elements.inventoryCancelButton.hidden = true;
       }
       clearFormMessage(elements.inventoryMessage);
+      updateInventoryValidationState();
     }
 
     function resetInvoicePanel() {
@@ -1126,6 +1449,7 @@
       elements.adminBookingServiceSelect.innerHTML = SERVICE_CATALOG
         .map((service) => `<option value="${service.name}">${service.name}</option>`)
         .join("");
+      updateAdminBookingValidationState();
     }
 
     function createWorkOrderFromAppointment(appointment) {
@@ -1771,6 +2095,7 @@
         ? vehicles.map((vehicle) => `<option value="${vehicle.id}">${getVehicleDisplayName(vehicle)}</option>`).join("")
         : '<option value="">Add a vehicle first</option>';
       elements.customerBookingVehicleSelect.disabled = vehicles.length === 0;
+      updateCustomerBookingValidationState();
     }
 
     function populateCustomerBookingServiceOptions() {
@@ -1778,41 +2103,52 @@
       elements.customerBookingServiceSelect.innerHTML = SERVICE_CATALOG
         .map((service) => `<option value="${service.name}">${service.name}</option>`)
         .join("");
+      updateCustomerBookingValidationState();
     }
 
-    function validateCustomerVehicleForm() {
+    function validateCustomerVehicleForm({ interactive = true } = {}) {
       const year = Number(elements.customerVehicleYearField?.value);
       const make = elements.customerVehicleMakeField?.value.trim();
       const model = elements.customerVehicleModelField?.value.trim();
       const mileage = Number(elements.customerVehicleMileageField?.value);
 
       if (!elements.customerVehicleVin?.value.trim() || !make || !model || elements.customerVehicleYearField?.value.trim() === "" || elements.customerVehicleMileageField?.value.trim() === "") {
-        setFormMessage(elements.customerVehicleFormMessage, "Add all required vehicle details before saving.");
-        window.alert("Please complete all required vehicle fields.");
+        if (interactive) {
+          setFormMessage(elements.customerVehicleFormMessage, "Add all required vehicle details before saving.");
+          window.alert("Please complete all required vehicle fields.");
+        }
         return false;
       }
 
       if (!validateCustomerPortalVIN()) {
-        setFormMessage(elements.customerVehicleFormMessage, "Enter a valid VIN before saving.");
-        window.alert("Enter a valid VIN before saving.");
+        if (interactive) {
+          setFormMessage(elements.customerVehicleFormMessage, "Enter a valid VIN before saving.");
+          window.alert("Enter a valid VIN before saving.");
+        }
         return false;
       }
 
       if (!Number.isInteger(year) || year < 1900 || year > 2099) {
-        setFormMessage(elements.customerVehicleFormMessage, "Enter a valid model year.");
-        window.alert("Enter a valid model year.");
+        if (interactive) {
+          setFormMessage(elements.customerVehicleFormMessage, "Enter a valid model year.");
+          window.alert("Enter a valid model year.");
+        }
         return false;
       }
 
       if (!Number.isFinite(mileage) || mileage < 0) {
         elements.customerVehicleMileageField?.classList.add("is-invalid");
-        setFormMessage(elements.customerVehicleFormMessage, "Mileage must be a valid positive value.");
-        window.alert("Mileage must be a valid positive value.");
+        if (interactive) {
+          setFormMessage(elements.customerVehicleFormMessage, "Mileage must be a valid positive value.");
+          window.alert("Mileage must be a valid positive value.");
+        }
         return false;
       }
 
       elements.customerVehicleMileageField?.classList.remove("is-invalid");
-      clearFormMessage(elements.customerVehicleFormMessage);
+      if (interactive) {
+        clearFormMessage(elements.customerVehicleFormMessage);
+      }
       return true;
     }
 
@@ -2258,89 +2594,66 @@
     function resetOperatorPassword(operatorId) {
       const operator = getOperatorUsers().find((user) => user.id === operatorId);
       if (!operator) return;
+      const resetPassword = DEFAULT_OPERATOR_PASSWORD;
 
-      const nextPassword = window.prompt(
-        `Set a temporary password for ${operator.name}. Leave the suggested value or replace it.`,
-        DEFAULT_OPERATOR_PASSWORD
-      );
-      if (nextPassword === null) return;
-
-      const trimmedPassword = nextPassword.trim();
-      if (!trimmedPassword) {
-        window.alert("Password reset canceled. Enter a non-empty password.");
-        return;
+      const existingOperatorUser = state.users.find((user) => user.id === operatorId && user.role === "operator");
+      if (existingOperatorUser) {
+        state.users = state.users.map((user) =>
+          user.id === operatorId && user.role === "operator"
+            ? { ...user, passwordHash: hashPassword(resetPassword) }
+            : user
+        );
+      } else {
+        state.users.push({
+          id: operatorId,
+          role: "operator",
+          name: operator.name,
+          email: operator.email,
+          passwordHash: hashPassword(resetPassword)
+        });
       }
-
-      state.users = state.users.map((user) =>
-        user.id === operatorId && user.role === "operator"
-          ? { ...user, passwordHash: hashPassword(trimmedPassword) }
-          : user
-      );
       persistState();
-      setFormMessage(elements.operatorFormMessage, `Password reset for ${operator.name}. Temporary password: ${trimmedPassword}`);
-      window.alert(`Password reset for ${operator.name}. New temporary password: ${trimmedPassword}`);
       render();
+      setFormMessage(elements.operatorFormMessage, `Password reset successful for ${operator.name}. Default password restored: ${DEFAULT_OPERATOR_PASSWORD}`);
+      window.alert(`Password reset successful for ${operator.name}. Default password restored: ${DEFAULT_OPERATOR_PASSWORD}`);
     }
 
     function resetCustomerPassword(customerId) {
       const customer = findCustomer(customerId);
       if (!customer) return;
+      const resetPassword = DEFAULT_CUSTOMER_PASSWORD;
 
-      const nextPassword = window.prompt(
-        `Set a temporary password for ${customer.name}. Leave the suggested value or replace it.`,
-        DEFAULT_CUSTOMER_PASSWORD
-      );
-
-      if (nextPassword === null) return;
-
-      const trimmedPassword = nextPassword.trim();
-      if (!trimmedPassword) {
-        window.alert("Password reset canceled. Enter a non-empty password.");
-        return;
+      const existingCustomerUser = state.users.find((user) => user.customerId === customerId && user.role === "customer");
+      if (existingCustomerUser) {
+        state.users = state.users.map((user) =>
+          user.customerId === customerId && user.role === "customer"
+            ? { ...user, passwordHash: hashPassword(resetPassword) }
+            : user
+        );
+      } else {
+        state.users.push({
+          id: `customer-${customerId}`,
+          role: "customer",
+          name: customer.name,
+          email: customer.email.toLowerCase(),
+          customerId,
+          passwordHash: hashPassword(resetPassword)
+        });
       }
-
-      state.users = state.users.map((user) =>
-        user.customerId === customerId && user.role === "customer"
-          ? { ...user, passwordHash: hashPassword(trimmedPassword) }
-          : user
-      );
       persistState();
-      setFormMessage(elements.customerFormMessage, `Password reset for ${customer.name}. Temporary password: ${trimmedPassword}`);
-      window.alert(`Password reset for ${customer.name}. New temporary password: ${trimmedPassword}`);
       render();
+      setFormMessage(elements.customerFormMessage, `Password reset successful for ${customer.name}. Default password restored: ${DEFAULT_CUSTOMER_PASSWORD}`);
+      window.alert(`Password reset successful for ${customer.name}. Default password restored: ${DEFAULT_CUSTOMER_PASSWORD}`);
     }
 
     function changeCustomerPassword() {
       const customer = getCurrentCustomer();
       if (!customer) return false;
 
-      const currentPassword = String(elements.customerCurrentPassword?.value || "");
       const newPassword = String(elements.customerNewPassword?.value || "").trim();
-      const confirmPassword = String(elements.customerConfirmPassword?.value || "").trim();
-      const customerUser = state.users.find((user) => user.customerId === customer.id && user.role === "customer");
-      const savedPasswordHash = customerUser?.passwordHash || DEFAULT_CUSTOMER_PASSWORD_HASH;
-
-      if (!currentPassword || !newPassword || !confirmPassword) {
-        setFormMessage(elements.customerPasswordMessage, "Complete all password fields before saving.");
-        window.alert("Please complete all password fields.");
-        return false;
-      }
-
-      if (hashPassword(currentPassword) !== savedPasswordHash) {
-        setFormMessage(elements.customerPasswordMessage, "Current password is incorrect.");
-        window.alert("Current password is incorrect.");
-        return false;
-      }
-
-      if (newPassword.length < 6) {
-        setFormMessage(elements.customerPasswordMessage, "New password must be at least 6 characters.");
-        window.alert("New password must be at least 6 characters.");
-        return false;
-      }
-
-      if (newPassword !== confirmPassword) {
-        setFormMessage(elements.customerPasswordMessage, "New password and confirmation do not match.");
-        window.alert("New password and confirmation do not match.");
+      if (!validateCustomerPasswordFields({ interactive: true })) {
+        const message = elements.customerPasswordMessage?.textContent || "Password update failed.";
+        window.alert(message);
         return false;
       }
 
@@ -3357,6 +3670,7 @@
         elements.loginMessage.textContent = "Your session expired after 30 minutes of inactivity.";
       }
       applyAuthView();
+      updateLoginValidationState();
       if (!auth) return;
 
       touchSession();
@@ -3381,6 +3695,14 @@
       if (isCustomerUser()) {
         renderCustomerPortal();
       }
+      updateCustomerFormValidationState();
+      updateOperatorFormValidationState();
+      updateVehicleFormValidationState();
+      updateCustomerVehicleValidationState();
+      updateCustomerPasswordValidationState();
+      updateCustomerBookingValidationState();
+      updateAdminBookingValidationState();
+      updateInventoryValidationState();
     }
 
     // =============================
@@ -3515,6 +3837,51 @@
 
     elements.searchForm?.addEventListener("input", () => {
       renderSearchResults();
+    });
+
+    [elements.loginRole, elements.loginEmailField, elements.loginPasswordField].forEach((field) => {
+      field?.addEventListener("input", updateLoginValidationState);
+      field?.addEventListener("change", updateLoginValidationState);
+    });
+
+    [elements.customerNameField, elements.customerAddressField, elements.customerPhoneField, elements.customerEmailField, elements.customerLoyaltyField].forEach((field) => {
+      field?.addEventListener("input", updateCustomerFormValidationState);
+      field?.addEventListener("change", updateCustomerFormValidationState);
+    });
+
+    [elements.operatorNameField, elements.operatorEmailField].forEach((field) => {
+      field?.addEventListener("input", updateOperatorFormValidationState);
+      field?.addEventListener("change", updateOperatorFormValidationState);
+    });
+
+    [elements.customerCurrentPassword, elements.customerNewPassword, elements.customerConfirmPassword].forEach((field) => {
+      field?.addEventListener("input", updateCustomerPasswordValidationState);
+      field?.addEventListener("change", updateCustomerPasswordValidationState);
+    });
+
+    [elements.customerBookingVehicleSelect, elements.customerBookingServiceSelect, elements.customerAppointmentAt].forEach((field) => {
+      field?.addEventListener("input", updateCustomerBookingValidationState);
+      field?.addEventListener("change", updateCustomerBookingValidationState);
+    });
+
+    [elements.adminBookingCustomerSelect, elements.adminBookingVehicleSelect, elements.adminBookingServiceSelect, elements.adminAppointmentAt].forEach((field) => {
+      field?.addEventListener("input", updateAdminBookingValidationState);
+      field?.addEventListener("change", updateAdminBookingValidationState);
+    });
+
+    [elements.inventoryNameField, elements.inventorySkuField, elements.inventoryQuantityField, elements.inventoryReorderField, elements.inventoryPriceField].forEach((field) => {
+      field?.addEventListener("input", updateInventoryValidationState);
+      field?.addEventListener("change", updateInventoryValidationState);
+    });
+
+    [elements.vehicleCustomerSelect, elements.vehicleYearField, elements.vehicleMakeField, elements.vehicleModelField, elements.vehicleWarrantyField, elements.vehicleCodesField].forEach((field) => {
+      field?.addEventListener("input", updateVehicleFormValidationState);
+      field?.addEventListener("change", updateVehicleFormValidationState);
+    });
+
+    [elements.customerVehicleYearField, elements.customerVehicleMakeField, elements.customerVehicleModelField, elements.customerVehicleWarrantyField, elements.customerVehicleCodesField].forEach((field) => {
+      field?.addEventListener("input", updateCustomerVehicleValidationState);
+      field?.addEventListener("change", updateCustomerVehicleValidationState);
     });
 
     ["click", "keydown", "touchstart"].forEach((eventName) => {
@@ -3684,13 +4051,20 @@
       markInvoicePaid();
     });
 
-    elements.vehicleVin.addEventListener("input", validateVINInput);
-    elements.vehicleVin.addEventListener("blur", validateVINInput);
+    elements.vehicleVin.addEventListener("input", () => {
+      validateVINInput();
+      updateVehicleFormValidationState();
+    });
+    elements.vehicleVin.addEventListener("blur", () => {
+      validateVINInput();
+      updateVehicleFormValidationState();
+    });
     elements.vehicleMileageField.addEventListener("input", () => {
       if (Number(elements.vehicleMileageField.value) >= 0) {
         elements.vehicleMileageField.classList.remove("is-invalid");
         clearFormMessage(elements.vehicleFormMessage);
       }
+      updateVehicleFormValidationState();
     });
 
     elements.vehicleForm.addEventListener("submit", (event) => {
@@ -3730,13 +4104,20 @@
       resetVehicleForm();
     });
 
-    elements.customerVehicleVin?.addEventListener("input", validateCustomerPortalVIN);
-    elements.customerVehicleVin?.addEventListener("blur", validateCustomerPortalVIN);
+    elements.customerVehicleVin?.addEventListener("input", () => {
+      validateCustomerPortalVIN();
+      updateCustomerVehicleValidationState();
+    });
+    elements.customerVehicleVin?.addEventListener("blur", () => {
+      validateCustomerPortalVIN();
+      updateCustomerVehicleValidationState();
+    });
     elements.customerVehicleMileageField?.addEventListener("input", () => {
       if (Number(elements.customerVehicleMileageField.value) >= 0) {
         elements.customerVehicleMileageField.classList.remove("is-invalid");
         clearFormMessage(elements.customerVehicleFormMessage);
       }
+      updateCustomerVehicleValidationState();
     });
 
     elements.customerVehicleForm?.addEventListener("submit", (event) => {

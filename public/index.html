@@ -32,13 +32,13 @@
         </label>
         <label>
           Email
-          <input name="email" type="email" placeholder="admin@icloud.com" required>
+          <input name="email" id="loginEmailField" type="email" placeholder="admin@icloud.com" required>
         </label>
         <label>
           Password
-          <input name="password" type="password" placeholder="Enter password" required>
+          <input name="password" id="loginPasswordField" type="password" placeholder="Enter password" required>
         </label>
-        <button type="submit" class="primary-btn form-btn">Sign In</button>
+        <button type="submit" class="primary-btn form-btn" id="loginSubmitButton">Sign In</button>
       </form>
       <p id="loginMessage" class="login-message" aria-live="polite"></p>
     </div>
@@ -177,7 +177,7 @@
               <input name="confirmPassword" id="customerConfirmPassword" type="password" placeholder="Confirm new password" required>
             </label>
             <p id="customerPasswordMessage" class="form-status full-span" aria-live="polite"></p>
-            <button type="submit" class="primary-btn form-btn">Change Password</button>
+            <button type="submit" class="primary-btn form-btn" id="customerPasswordSubmitButton">Change Password</button>
           </form>
           <div id="customerVehicleList" class="stack-list"></div>
         </article>
@@ -218,7 +218,7 @@
               <input name="mileage" id="customerVehicleMileageField" type="number" min="0" placeholder="42000" required>
             </label>
             <p id="customerVehicleFormMessage" class="form-status full-span" aria-live="polite"></p>
-            <button type="submit" class="primary-btn form-btn">Save My Vehicle</button>
+            <button type="submit" class="primary-btn form-btn" id="customerVehicleSubmitButton">Save My Vehicle</button>
           </form>
         </article>
 
@@ -245,7 +245,7 @@
               <input name="bookingNote" id="customerBookingNote" type="text" placeholder="Need shuttle ride or waiting room seating.">
             </label>
             <p id="customerBookingMessage" class="form-status full-span" aria-live="polite"></p>
-            <button type="submit" class="primary-btn form-btn">Book Appointment</button>
+            <button type="submit" class="primary-btn form-btn" id="customerBookingSubmitButton">Book Appointment</button>
           </form>
         </article>
 
@@ -469,7 +469,7 @@
               <input name="bookingNote" type="text" placeholder="Customer requested waiting room seating or drop-off instructions.">
             </label>
             <p id="adminBookingMessage" class="form-status full-span" aria-live="polite"></p>
-            <button type="submit" class="primary-btn form-btn">Book Appointment</button>
+            <button type="submit" class="primary-btn form-btn" id="adminBookingSubmitButton">Book Appointment</button>
           </form>
         </article>
 
