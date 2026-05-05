@@ -1,6 +1,6 @@
 # Torque Garage Public Prototype
 
-This project is a browser-based automotive service management prototype built from static frontend assets in the [`public/`](/Users/beofam/Downloads/automotive-repair-management-system-main/public) folder. It provides a role-based demo experience for `admin`, `operator`, and `customer` users using `HTML`, `CSS`, `JavaScript`, and `localStorage` persistence, with no backend or installation required for local use.
+This project is a browser-based automotive service management prototype built from static frontend assets in the [`public/`](public/) folder. It provides a role-based demo experience for `admin`, `operator`, and `customer` users using `HTML`, `CSS`, `JavaScript`, and `localStorage` persistence, with no backend or installation required for local use.
 
 ## Table of Contents
 
@@ -337,8 +337,8 @@ All records are stored as JSON inside browser `localStorage`.
 
 Open either of these in a browser:
 
-- [/Users/beofam/Downloads/automotive-repair-management-system-main/public/index.html](/Users/beofam/Downloads/automotive-repair-management-system-main/public/index.html)
-- [/Users/beofam/Downloads/automotive-repair-management-system-main/public/torque-garage-prototype.html](/Users/beofam/Downloads/automotive-repair-management-system-main/public/torque-garage-prototype.html)
+- [public/index.html](public/index.html)
+- [public/torque-garage-prototype.html](public/torque-garage-prototype.html)
 
 ### Demo Logins
 
