@@ -6,13 +6,14 @@
     const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
     const SESSION_PERSIST_INTERVAL_MS = 60 * 1000;
     const DEFAULT_CUSTOMER_PASSWORD = "customer123";
+    const DEFAULT_OPERATOR_PASSWORD = "operator123";
+    const MIN_PASSWORD_LENGTH = 6;
     const DEFAULT_CUSTOMER_PASSWORD_HASH = "1ef916ed";
     const DEMO_PASSWORD_HASHES = {
       admin: "185030e4",
       operator: "ef24a767"
     };
     const BAYS = ["Bay 1", "Bay 2", "Bay 3", "Bay 4"];
-    const OPERATORS = ["Jane Doe", "Alex Rivera", "Sam Lee", "Chris Hall"];
     const APPOINTMENT_STATUS = {
       PENDING_APPROVAL: "PENDING_APPROVAL",
       REJECTED: "REJECTED",
@@ -67,7 +68,10 @@
     // =============================
     const demoUsers = [
       { id: "admin-user", role: "admin", email: "admin@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.admin, name: "Shop Admin" },
-      { id: "operator-user", role: "operator", email: "operator@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Jane Doe" }
+      { id: "operator-jane-doe", role: "operator", email: "operator@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Jane Doe" },
+      { id: "operator-alex-rivera", role: "operator", email: "alex.rivera@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Alex Rivera" },
+      { id: "operator-sam-lee", role: "operator", email: "sam.lee@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Sam Lee" },
+      { id: "operator-chris-hall", role: "operator", email: "chris.hall@icloud.com", passwordHash: DEMO_PASSWORD_HASHES.operator, name: "Chris Hall" }
     ];
 
     function createDemoState() {
@@ -221,9 +225,31 @@
           completedAt: "",
           verifiedAt: "",
           reviewRequestedAt: "",
-          ...workOrder
+          invoice: {
+            laborCost: 0,
+            otherCost: 0,
+            otherDescription: "",
+            paid: false,
+            paidAt: "",
+            paidBy: ""
+          },
+          ...workOrder,
+          invoice: {
+            laborCost: 0,
+            otherCost: 0,
+            otherDescription: "",
+            paid: false,
+            paidAt: "",
+            paidBy: "",
+            ...(workOrder.invoice || {})
+          }
         })),
-        workOrderParts: rawState.workOrderParts || [],
+        workOrderParts: (rawState.workOrderParts || []).map((item) => ({
+          unitPrice: 0,
+          partName: "",
+          sku: "",
+          ...item
+        })),
         appointments: (rawState.appointments || []).map((appointment) => ({
           bookingNote: "",
           approved: false,
@@ -278,12 +304,18 @@
     let state = loadState();
     let auth = loadAuth();
     let lastSessionPersistAt = Number(auth?.lastActiveAt || 0);
+    let selectedInvoiceWorkOrderId = "";
+    let invoicePanelNotice = "";
 
     // =============================
     // DOM ELEMENT REFERENCES
     // =============================
     const elements = {
       loginForm: document.getElementById("loginForm"),
+      loginRole: document.getElementById("loginRole"),
+      loginEmailField: document.getElementById("loginEmailField"),
+      loginPasswordField: document.getElementById("loginPasswordField"),
+      loginSubmitButton: document.getElementById("loginSubmitButton"),
       loginMessage: document.getElementById("loginMessage"),
       logoutButton: document.getElementById("logoutButton"),
       sessionName: document.getElementById("sessionName"),
@@ -296,16 +328,23 @@
       metricOpenOrders: document.getElementById("metricOpenOrders"),
       metricLowStock: document.getElementById("metricLowStock"),
       customerForm: document.getElementById("customerForm"),
+      operatorForm: document.getElementById("operatorForm"),
       vehicleForm: document.getElementById("vehicleForm"),
       customerIdField: document.getElementById("customerIdField"),
+      operatorIdField: document.getElementById("operatorIdField"),
       customerNameField: document.getElementById("customerNameField"),
+      operatorNameField: document.getElementById("operatorNameField"),
       customerAddressField: document.getElementById("customerAddressField"),
       customerPhoneField: document.getElementById("customerPhoneField"),
       customerEmailField: document.getElementById("customerEmailField"),
+      operatorEmailField: document.getElementById("operatorEmailField"),
       customerLoyaltyField: document.getElementById("customerLoyaltyField"),
       customerFormMessage: document.getElementById("customerFormMessage"),
+      operatorFormMessage: document.getElementById("operatorFormMessage"),
       customerSubmitButton: document.getElementById("customerSubmitButton"),
+      operatorSubmitButton: document.getElementById("operatorSubmitButton"),
       customerCancelButton: document.getElementById("customerCancelButton"),
+      operatorCancelButton: document.getElementById("operatorCancelButton"),
       workOrderForm: document.getElementById("workOrderForm"),
       workOrderAppointmentSelect: document.getElementById("workOrderAppointmentSelect"),
       workOrderCustomerSelect: document.getElementById("workOrderCustomerSelect"),
@@ -331,6 +370,7 @@
       searchResults: document.getElementById("searchResults"),
       vehicleIdField: document.getElementById("vehicleIdField"),
       customerList: document.getElementById("customerList"),
+      operatorList: document.getElementById("operatorList"),
       vehicleList: document.getElementById("vehicleList"),
       customerSummary: document.getElementById("customerSummary"),
       customerPasswordForm: document.getElementById("customerPasswordForm"),
@@ -338,6 +378,7 @@
       customerNewPassword: document.getElementById("customerNewPassword"),
       customerConfirmPassword: document.getElementById("customerConfirmPassword"),
       customerPasswordMessage: document.getElementById("customerPasswordMessage"),
+      customerPasswordSubmitButton: document.getElementById("customerPasswordSubmitButton"),
       customerVehicleList: document.getElementById("customerVehicleList"),
       customerVehicleForm: document.getElementById("customerVehicleForm"),
       customerVehicleVin: document.getElementById("customerVehicleVin"),
@@ -349,11 +390,13 @@
       customerVehicleWarrantyField: document.getElementById("customerVehicleWarrantyField"),
       customerVehicleCodesField: document.getElementById("customerVehicleCodesField"),
       customerVehicleFormMessage: document.getElementById("customerVehicleFormMessage"),
+      customerVehicleSubmitButton: document.getElementById("customerVehicleSubmitButton"),
       customerBookingForm: document.getElementById("customerBookingForm"),
       customerBookingVehicleSelect: document.getElementById("customerBookingVehicleSelect"),
       customerBookingServiceSelect: document.getElementById("customerBookingServiceSelect"),
       customerAppointmentAt: document.getElementById("customerAppointmentAt"),
       customerBookingMessage: document.getElementById("customerBookingMessage"),
+      customerBookingSubmitButton: document.getElementById("customerBookingSubmitButton"),
       customerAppointmentsTitle: document.getElementById("customerAppointmentsTitle"),
       customerAppointmentList: document.getElementById("customerAppointmentList"),
       customerMaintenanceList: document.getElementById("customerMaintenanceList"),
@@ -365,7 +408,22 @@
       adminBookingServiceSelect: document.getElementById("adminBookingServiceSelect"),
       adminAppointmentAt: document.getElementById("adminAppointmentAt"),
       adminBookingMessage: document.getElementById("adminBookingMessage"),
+      adminBookingSubmitButton: document.getElementById("adminBookingSubmitButton"),
       adminStatusBoard: document.getElementById("adminStatusBoard"),
+      invoiceForm: document.getElementById("invoiceForm"),
+      invoiceWorkOrderIdField: document.getElementById("invoiceWorkOrderIdField"),
+      invoiceSummary: document.getElementById("invoiceSummary"),
+      invoiceLaborCostField: document.getElementById("invoiceLaborCostField"),
+      invoiceOtherCostField: document.getElementById("invoiceOtherCostField"),
+      invoiceOtherDescriptionField: document.getElementById("invoiceOtherDescriptionField"),
+      invoiceMaterialSelect: document.getElementById("invoiceMaterialSelect"),
+      invoiceMaterialQuantityField: document.getElementById("invoiceMaterialQuantityField"),
+      invoiceAddMaterialButton: document.getElementById("invoiceAddMaterialButton"),
+      invoiceMaterialList: document.getElementById("invoiceMaterialList"),
+      invoiceTotals: document.getElementById("invoiceTotals"),
+      invoiceMessage: document.getElementById("invoiceMessage"),
+      invoiceSaveButton: document.getElementById("invoiceSaveButton"),
+      invoiceMarkPaidButton: document.getElementById("invoiceMarkPaidButton"),
       ongoingServicesList: document.getElementById("ongoingServicesList"),
       scheduleList: document.getElementById("scheduleList"),
       portalTitle: document.getElementById("portalTitle"),
@@ -403,6 +461,16 @@
       if (!vehicle) return "Vehicle not found";
       const parts = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean);
       return parts.length ? parts.join(" ") : vehicle.vehicleLabel || "Vehicle";
+    }
+
+    function getOperatorUsers() {
+      return getAllUsers()
+        .filter((user) => user.role === "operator")
+        .sort((first, second) => first.name.localeCompare(second.name));
+    }
+
+    function getOperatorNames() {
+      return getOperatorUsers().map((user) => user.name);
     }
 
     function formatRecordId(prefix, value) {
@@ -450,10 +518,16 @@
       elements.loginMessage.textContent = "";
 
       elements.customerForm?.reset();
-      elements.customerIdField.value = "";
-      elements.customerSubmitButton.textContent = "Save Customer";
-      elements.customerCancelButton.hidden = true;
-      clearFormMessage(elements.customerFormMessage);
+      if (elements.customerIdField) elements.customerIdField.value = "";
+      if (elements.customerSubmitButton) elements.customerSubmitButton.textContent = "Save Customer";
+      if (elements.customerCancelButton) elements.customerCancelButton.hidden = true;
+      if (elements.customerFormMessage) clearFormMessage(elements.customerFormMessage);
+
+      elements.operatorForm?.reset();
+      if (elements.operatorIdField) elements.operatorIdField.value = "";
+      if (elements.operatorSubmitButton) elements.operatorSubmitButton.textContent = "Save Operator";
+      if (elements.operatorCancelButton) elements.operatorCancelButton.hidden = true;
+      if (elements.operatorFormMessage) clearFormMessage(elements.operatorFormMessage);
 
       elements.vehicleForm?.reset();
       elements.vehicleIdField.value = "";
@@ -480,6 +554,23 @@
       elements.adminBookingForm?.reset();
       clearFormMessage(elements.adminBookingMessage);
 
+      elements.invoiceForm?.reset();
+      if (elements.invoiceWorkOrderIdField) {
+        elements.invoiceWorkOrderIdField.value = "";
+      }
+      if (elements.invoiceSummary) {
+        elements.invoiceSummary.innerHTML = '<article class="empty-state">Select a verified or ready-for-pickup work order to prepare the invoice.</article>';
+      }
+      if (elements.invoiceMaterialList) {
+        elements.invoiceMaterialList.innerHTML = "";
+      }
+      if (elements.invoiceTotals) {
+        elements.invoiceTotals.innerHTML = "";
+      }
+      clearFormMessage(elements.invoiceMessage);
+      selectedInvoiceWorkOrderId = "";
+      invoicePanelNotice = "";
+
       elements.inventoryForm?.reset();
       if (elements.inventoryIdField) {
         elements.inventoryIdField.value = "";
@@ -496,6 +587,8 @@
     function expireSession() {
       auth = null;
       lastSessionPersistAt = 0;
+      selectedInvoiceWorkOrderId = "";
+      invoicePanelNotice = "";
       localStorage.removeItem(AUTH_KEY);
     }
 
@@ -567,23 +660,337 @@
       element.textContent = "";
     }
 
-    function validateCustomerForm() {
+    function isValidEmail(value) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+    }
+
+    function setFieldInvalidState(field, isInvalid) {
+      if (!field) return;
+      field.classList.toggle("is-invalid", Boolean(isInvalid));
+    }
+
+    function validateEmailField(field, { required = true } = {}) {
+      if (!field) return true;
+      const normalizedValue = String(field.value || "").trim().toLowerCase();
+      field.value = normalizedValue;
+
+      if (!normalizedValue) {
+        setFieldInvalidState(field, required);
+        return !required;
+      }
+
+      const valid = isValidEmail(normalizedValue);
+      setFieldInvalidState(field, !valid);
+      return valid;
+    }
+
+    function getPasswordComplexityMessage(password) {
+      const normalized = String(password || "").trim();
+      if (normalized.length < MIN_PASSWORD_LENGTH) {
+        return `New password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+      }
+      if (!/\d/.test(normalized) || !/[^A-Za-z0-9]/.test(normalized)) {
+        return "Weak password. New password must include at least 1 number and 1 special symbol.";
+      }
+      return "";
+    }
+
+    function updateSubmitButtonState(button, isEnabled) {
+      if (!button) return;
+      button.disabled = !isEnabled;
+      button.setAttribute("aria-disabled", String(!isEnabled));
+    }
+
+    function validateLoginFormState() {
+      const emailValid = validateEmailField(elements.loginEmailField);
+      const passwordValid = String(elements.loginPasswordField?.value || "").trim().length > 0;
+      const roleValid = Boolean(elements.loginRole?.value);
+      return emailValid && passwordValid && roleValid;
+    }
+
+    function validateCustomerPasswordFields({ interactive = false } = {}) {
+      const customer = getCurrentCustomer();
+      const currentPassword = String(elements.customerCurrentPassword?.value || "");
+      const newPassword = String(elements.customerNewPassword?.value || "").trim();
+      const confirmPassword = String(elements.customerConfirmPassword?.value || "").trim();
+
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, "Complete all password fields before saving.");
+        }
+        return false;
+      }
+
+      if (!customer) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, "Customer profile not found.");
+        }
+        return false;
+      }
+
+      const customerUser = state.users.find((user) => user.customerId === customer.id && user.role === "customer");
+      const savedPasswordHash = customerUser?.passwordHash || DEFAULT_CUSTOMER_PASSWORD_HASH;
+      const currentMatches = hashPassword(currentPassword) === savedPasswordHash;
+      setFieldInvalidState(elements.customerCurrentPassword, !currentMatches);
+      if (!currentMatches) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, "Current password is incorrect.");
+        }
+        return false;
+      }
+
+      const complexityMessage = getPasswordComplexityMessage(newPassword);
+      const passwordStrong = !complexityMessage;
+      setFieldInvalidState(elements.customerNewPassword, !passwordStrong);
+      if (!passwordStrong) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, complexityMessage);
+        }
+        return false;
+      }
+
+      const passwordsMatch = newPassword === confirmPassword;
+      setFieldInvalidState(elements.customerConfirmPassword, !passwordsMatch);
+      if (!passwordsMatch) {
+        if (interactive) {
+          setFormMessage(elements.customerPasswordMessage, "New password and confirmation do not match.");
+        }
+        return false;
+      }
+
+      if (interactive) {
+        clearFormMessage(elements.customerPasswordMessage);
+      }
+      return true;
+    }
+
+    function validateCustomerBookingFormState() {
+      const appointmentAtValue = String(elements.customerAppointmentAt?.value || "");
+      const appointmentAt = new Date(appointmentAtValue);
+      if (!elements.customerBookingVehicleSelect?.value || elements.customerBookingVehicleSelect?.disabled) return false;
+      if (!elements.customerBookingServiceSelect?.value || elements.customerBookingServiceSelect?.disabled) return false;
+      if (!appointmentAtValue || Number.isNaN(appointmentAt.getTime())) return false;
+      if (appointmentAt < new Date()) return false;
+      if (!isOnTheHour(appointmentAt)) return false;
+      if (!isWithinBusinessHours(appointmentAt)) return false;
+      return !hasDuplicateAppointment(String(elements.customerBookingVehicleSelect.value), appointmentAt.toISOString());
+    }
+
+    function validateAdminBookingFormState() {
+      const customerId = String(elements.adminBookingCustomerSelect?.value || "");
+      const vehicleId = String(elements.adminBookingVehicleSelect?.value || "");
+      const serviceType = String(elements.adminBookingServiceSelect?.value || "");
+      const appointmentAtValue = String(elements.adminAppointmentAt?.value || "");
+      const appointmentAt = new Date(appointmentAtValue);
+      if (!customerId || elements.adminBookingCustomerSelect?.disabled) return false;
+      if (!vehicleId || elements.adminBookingVehicleSelect?.disabled) return false;
+      if (!serviceType) return false;
+      if (!appointmentAtValue || Number.isNaN(appointmentAt.getTime())) return false;
+      if (!isOnTheHour(appointmentAt)) return false;
+      if (!isWithinBusinessHours(appointmentAt)) return false;
+      return !hasDuplicateAppointment(vehicleId, appointmentAt.toISOString());
+    }
+
+    function validateInventoryFormState() {
+      const name = String(elements.inventoryNameField?.value || "").trim();
+      const sku = String(elements.inventorySkuField?.value || "").trim();
+      const quantity = Number(elements.inventoryQuantityField?.value);
+      const reorderPoint = Number(elements.inventoryReorderField?.value);
+      const price = Number(elements.inventoryPriceField?.value);
+      if (!name || !sku) return false;
+      if (!Number.isFinite(quantity) || quantity < 0) return false;
+      if (!Number.isFinite(reorderPoint) || reorderPoint < 0) return false;
+      if (!Number.isFinite(price) || price < 0) return false;
+      return true;
+    }
+
+    function updateLoginValidationState() {
+      const isValid = validateLoginFormState();
+      updateSubmitButtonState(elements.loginSubmitButton, isValid);
+      if (!String(elements.loginEmailField?.value || "").trim()) {
+        elements.loginMessage.textContent = "";
+      } else if (!isValidEmail(elements.loginEmailField?.value)) {
+        elements.loginMessage.textContent = "Enter a valid email address to sign in.";
+      } else if (!String(elements.loginPasswordField?.value || "").trim()) {
+        elements.loginMessage.textContent = "Enter your password to sign in.";
+      } else {
+        elements.loginMessage.textContent = "";
+      }
+    }
+
+    function updateCustomerFormValidationState() {
+      const hasEmailValue = Boolean(String(elements.customerEmailField?.value || "").trim());
+      const emailValid = validateEmailField(elements.customerEmailField);
+      const isValid = validateCustomerForm({ interactive: false });
+      updateSubmitButtonState(elements.customerSubmitButton, isValid);
+      if (!hasEmailValue) {
+        clearFormMessage(elements.customerFormMessage);
+      } else if (!emailValid) {
+        setFormMessage(elements.customerFormMessage, "Enter a valid email address before saving.");
+      } else {
+        clearFormMessage(elements.customerFormMessage);
+      }
+    }
+
+    function updateOperatorFormValidationState() {
+      const hasEmailValue = Boolean(String(elements.operatorEmailField?.value || "").trim());
+      const emailValid = validateEmailField(elements.operatorEmailField);
+      const isValid = validateOperatorForm({ interactive: false });
+      updateSubmitButtonState(elements.operatorSubmitButton, isValid);
+      if (!hasEmailValue) {
+        clearFormMessage(elements.operatorFormMessage);
+      } else if (!emailValid) {
+        setFormMessage(elements.operatorFormMessage, "Enter a valid operator email before saving.");
+      } else {
+        clearFormMessage(elements.operatorFormMessage);
+      }
+    }
+
+    function updateVehicleFormValidationState() {
+      const isValid = validateVehicleForm({ interactive: false });
+      updateSubmitButtonState(elements.vehicleSubmitButton, isValid);
+      if (!String(elements.vehicleVin?.value || "").trim()) {
+        clearFormMessage(elements.vehicleFormMessage);
+      } else if (!validateVINInput()) {
+        setFormMessage(elements.vehicleFormMessage, "Enter a valid VIN before saving.");
+      } else {
+        clearFormMessage(elements.vehicleFormMessage);
+      }
+    }
+
+    function updateCustomerVehicleValidationState() {
+      const isValid = validateCustomerVehicleForm({ interactive: false });
+      updateSubmitButtonState(elements.customerVehicleSubmitButton, isValid);
+      if (!String(elements.customerVehicleVin?.value || "").trim()) {
+        clearFormMessage(elements.customerVehicleFormMessage);
+      } else if (!validateCustomerPortalVIN()) {
+        setFormMessage(elements.customerVehicleFormMessage, "Enter a valid VIN before saving.");
+      } else {
+        clearFormMessage(elements.customerVehicleFormMessage);
+      }
+    }
+
+    function updateCustomerPasswordValidationState() {
+      const currentPassword = String(elements.customerCurrentPassword?.value || "");
+      const newPassword = String(elements.customerNewPassword?.value || "").trim();
+      const confirmPassword = String(elements.customerConfirmPassword?.value || "").trim();
+      const allEmpty = !currentPassword && !newPassword && !confirmPassword;
+      const isValid = validateCustomerPasswordFields({ interactive: false });
+      updateSubmitButtonState(elements.customerPasswordSubmitButton, isValid);
+
+      if (allEmpty) {
+        clearFormMessage(elements.customerPasswordMessage);
+        setFieldInvalidState(elements.customerCurrentPassword, false);
+        setFieldInvalidState(elements.customerNewPassword, false);
+        setFieldInvalidState(elements.customerConfirmPassword, false);
+        return;
+      }
+
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        setFormMessage(elements.customerPasswordMessage, "Complete all password fields before saving.");
+        return;
+      }
+
+      const complexityMessage = getPasswordComplexityMessage(newPassword);
+      if (complexityMessage) {
+        setFormMessage(elements.customerPasswordMessage, complexityMessage);
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        setFormMessage(elements.customerPasswordMessage, "New password and confirmation do not match.");
+        return;
+      }
+
+      if (!isValid) {
+        setFormMessage(elements.customerPasswordMessage, "Current password is incorrect.");
+        return;
+      }
+
+      clearFormMessage(elements.customerPasswordMessage);
+    }
+
+    function updateCustomerBookingValidationState() {
+      const isValid = validateCustomerBookingFormState();
+      updateSubmitButtonState(elements.customerBookingSubmitButton, isValid);
+    }
+
+    function updateAdminBookingValidationState() {
+      const isValid = validateAdminBookingFormState();
+      updateSubmitButtonState(elements.adminBookingSubmitButton, isValid);
+    }
+
+    function updateInventoryValidationState() {
+      const isValid = validateInventoryFormState();
+      updateSubmitButtonState(elements.inventorySubmitButton, isValid);
+    }
+
+    function validateCustomerForm({ interactive = true } = {}) {
       const name = elements.customerNameField.value.trim();
       const address = elements.customerAddressField.value.trim();
       const phone = elements.customerPhoneField.value.trim();
       const email = elements.customerEmailField.value.trim();
 
       if (!name || !address || !phone || !email) {
-        setFormMessage(elements.customerFormMessage, "Complete all required customer fields before saving.");
-        window.alert("Please complete all required customer fields.");
+        if (interactive) {
+          setFormMessage(elements.customerFormMessage, "Complete all required customer fields before saving.");
+          window.alert("Please complete all required customer fields.");
+        }
         return false;
       }
 
-      clearFormMessage(elements.customerFormMessage);
+      if (!validateEmailField(elements.customerEmailField)) {
+        if (interactive) {
+          setFormMessage(elements.customerFormMessage, "Enter a valid email address before saving.");
+          window.alert("Enter a valid email address before saving.");
+        }
+        return false;
+      }
+
+      if (interactive) {
+        clearFormMessage(elements.customerFormMessage);
+      }
       return true;
     }
 
-    function validateVehicleForm() {
+    function validateOperatorForm({ interactive = true } = {}) {
+      const name = elements.operatorNameField.value.trim();
+      const email = elements.operatorEmailField.value.trim().toLowerCase();
+
+      if (!name || !email) {
+        if (interactive) {
+          setFormMessage(elements.operatorFormMessage, "Complete all required operator fields before saving.");
+          window.alert("Please complete all required operator fields.");
+        }
+        return false;
+      }
+
+      if (!validateEmailField(elements.operatorEmailField)) {
+        if (interactive) {
+          setFormMessage(elements.operatorFormMessage, "Enter a valid operator email before saving.");
+          window.alert("Enter a valid operator email before saving.");
+        }
+        return false;
+      }
+
+      const duplicateUser = getAllUsers().find((user) =>
+        user.email === email && user.id !== String(elements.operatorIdField.value || "")
+      );
+      if (duplicateUser) {
+        if (interactive) {
+          setFormMessage(elements.operatorFormMessage, "An operator with that email already exists.");
+          window.alert("An operator with that email already exists.");
+        }
+        return false;
+      }
+
+      if (interactive) {
+        clearFormMessage(elements.operatorFormMessage);
+      }
+      return true;
+    }
+
+    function validateVehicleForm({ interactive = true } = {}) {
       const customerId = elements.vehicleCustomerSelect.value;
       const year = Number(elements.vehicleYearField.value);
       const make = elements.vehicleMakeField.value.trim();
@@ -591,32 +998,42 @@
       const mileage = Number(elements.vehicleMileageField.value);
 
       if (!customerId || !elements.vehicleVin.value.trim() || !make || !model || elements.vehicleYearField.value.trim() === "" || elements.vehicleMileageField.value.trim() === "") {
-        setFormMessage(elements.vehicleFormMessage, "Complete all required vehicle fields before saving.");
-        window.alert("Please complete all required vehicle fields.");
+        if (interactive) {
+          setFormMessage(elements.vehicleFormMessage, "Complete all required vehicle fields before saving.");
+          window.alert("Please complete all required vehicle fields.");
+        }
         return false;
       }
 
       if (!validateVINInput()) {
-        setFormMessage(elements.vehicleFormMessage, "Enter a valid VIN before saving.");
-        window.alert("Enter a valid VIN before saving.");
+        if (interactive) {
+          setFormMessage(elements.vehicleFormMessage, "Enter a valid VIN before saving.");
+          window.alert("Enter a valid VIN before saving.");
+        }
         return false;
       }
 
       if (!Number.isInteger(year) || year < 1900 || year > 2099) {
-        setFormMessage(elements.vehicleFormMessage, "Enter a valid model year.");
-        window.alert("Enter a valid model year.");
+        if (interactive) {
+          setFormMessage(elements.vehicleFormMessage, "Enter a valid model year.");
+          window.alert("Enter a valid model year.");
+        }
         return false;
       }
 
       if (!Number.isFinite(mileage) || mileage < 0) {
         elements.vehicleMileageField.classList.add("is-invalid");
-        setFormMessage(elements.vehicleFormMessage, "Mileage must be a valid positive value.");
-        window.alert("Mileage must be a valid positive value.");
+        if (interactive) {
+          setFormMessage(elements.vehicleFormMessage, "Mileage must be a valid positive value.");
+          window.alert("Mileage must be a valid positive value.");
+        }
         return false;
       }
 
       elements.vehicleMileageField.classList.remove("is-invalid");
-      clearFormMessage(elements.vehicleFormMessage);
+      if (interactive) {
+        clearFormMessage(elements.vehicleFormMessage);
+      }
       return true;
     }
 
@@ -628,7 +1045,19 @@
       elements.customerIdField.value = "";
       elements.customerSubmitButton.textContent = "Save Customer";
       elements.customerCancelButton.hidden = true;
+      setFieldInvalidState(elements.customerEmailField, false);
       clearFormMessage(elements.customerFormMessage);
+      updateCustomerFormValidationState();
+    }
+
+    function resetOperatorForm() {
+      elements.operatorForm?.reset();
+      if (elements.operatorIdField) elements.operatorIdField.value = "";
+      if (elements.operatorSubmitButton) elements.operatorSubmitButton.textContent = "Save Operator";
+      if (elements.operatorCancelButton) elements.operatorCancelButton.hidden = true;
+      setFieldInvalidState(elements.operatorEmailField, false);
+      if (elements.operatorFormMessage) clearFormMessage(elements.operatorFormMessage);
+      updateOperatorFormValidationState();
     }
 
     function resetVehicleForm() {
@@ -640,6 +1069,7 @@
       clearVinError();
       clearFormMessage(elements.vehicleFormMessage);
       populateCustomerSelect();
+      updateVehicleFormValidationState();
     }
 
     function resetCustomerVehicleForm() {
@@ -650,6 +1080,7 @@
       if (elements.customerVinValidationMessage) {
         elements.customerVinValidationMessage.textContent = "";
       }
+      updateCustomerVehicleValidationState();
     }
 
     function resetCustomerBookingForm() {
@@ -658,11 +1089,16 @@
       populateCustomerBookingVehicleOptions();
       populateCustomerBookingServiceOptions();
       configureAppointmentInputs();
+      updateCustomerBookingValidationState();
     }
 
     function resetCustomerPasswordForm() {
       elements.customerPasswordForm?.reset();
+      setFieldInvalidState(elements.customerCurrentPassword, false);
+      setFieldInvalidState(elements.customerNewPassword, false);
+      setFieldInvalidState(elements.customerConfirmPassword, false);
       clearFormMessage(elements.customerPasswordMessage);
+      updateCustomerPasswordValidationState();
     }
 
     function resetAdminBookingForm() {
@@ -670,6 +1106,7 @@
       clearFormMessage(elements.adminBookingMessage);
       populateAdminBookingSelects();
       configureAppointmentInputs();
+      updateAdminBookingValidationState();
     }
 
     function resetInventoryForm() {
@@ -684,6 +1121,18 @@
         elements.inventoryCancelButton.hidden = true;
       }
       clearFormMessage(elements.inventoryMessage);
+      updateInventoryValidationState();
+    }
+
+    function resetInvoicePanel() {
+      elements.invoiceForm?.reset();
+      if (elements.invoiceWorkOrderIdField) {
+        elements.invoiceWorkOrderIdField.value = "";
+      }
+      clearFormMessage(elements.invoiceMessage);
+      selectedInvoiceWorkOrderId = "";
+      invoicePanelNotice = "";
+      renderInvoicePanel();
     }
 
     // =============================
@@ -715,6 +1164,52 @@
 
     function findWorkOrderByAppointment(appointmentId) {
       return state.workOrders.find((workOrder) => workOrder.appointmentId === appointmentId);
+    }
+
+    function getInvoiceState(workOrder) {
+      return {
+        laborCost: 0,
+        otherCost: 0,
+        otherDescription: "",
+        paid: false,
+        paidAt: "",
+        paidBy: "",
+        ...(workOrder?.invoice || {})
+      };
+    }
+
+    function getWorkOrderMaterialLines(workOrderId) {
+      return state.workOrderParts
+        .filter((item) => item.workOrderId === workOrderId)
+        .map((item) => {
+          const inventoryPart = state.inventory.find((part) => part.id === item.partId);
+          const unitPrice = Number(item.unitPrice ?? inventoryPart?.price ?? 0);
+          const quantity = Number(item.quantity || 0);
+          return {
+            ...item,
+            displayName: item.partName || inventoryPart?.name || "Inventory item",
+            sku: item.sku || inventoryPart?.sku || "",
+            unitPrice,
+            quantity,
+            lineTotal: unitPrice * quantity
+          };
+        });
+    }
+
+    function getWorkOrderInvoiceTotals(workOrder) {
+      const invoice = getInvoiceState(workOrder);
+      const materials = getWorkOrderMaterialLines(workOrder.id);
+      const materialsTotal = materials.reduce((sum, item) => sum + item.lineTotal, 0);
+      const laborCost = Number(invoice.laborCost || 0);
+      const otherCost = Number(invoice.otherCost || 0);
+      return {
+        materials,
+        materialsTotal,
+        laborCost,
+        otherCost,
+        grandTotal: laborCost + materialsTotal + otherCost,
+        invoice
+      };
     }
 
     function getCurrentCustomer() {
@@ -756,6 +1251,13 @@
         dateStyle: "medium",
         timeStyle: "short"
       }).format(new Date(value));
+    }
+
+    function formatCurrency(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format(Number(value || 0));
     }
 
     function getDaysUntilAppointment(value) {
@@ -804,13 +1306,58 @@
       );
     }
 
+    function appointmentBlocksBay(appointment) {
+      return [
+        APPOINTMENT_STATUS.ASSIGNED,
+        APPOINTMENT_STATUS.IN_PROGRESS,
+        APPOINTMENT_STATUS.WAITING_FOR_PARTS,
+        APPOINTMENT_STATUS.WAITING_FOR_APPROVAL,
+        APPOINTMENT_STATUS.ON_HOLD,
+        APPOINTMENT_STATUS.WORK_COMPLETED,
+        APPOINTMENT_STATUS.VERIFIED
+      ].includes(appointment.status);
+    }
+
+    function appointmentBlocksOperator(appointment) {
+      return [
+        APPOINTMENT_STATUS.ASSIGNED,
+        APPOINTMENT_STATUS.IN_PROGRESS,
+        APPOINTMENT_STATUS.WAITING_FOR_PARTS,
+        APPOINTMENT_STATUS.WAITING_FOR_APPROVAL,
+        APPOINTMENT_STATUS.ON_HOLD,
+        APPOINTMENT_STATUS.WORK_COMPLETED,
+        APPOINTMENT_STATUS.VERIFIED,
+        APPOINTMENT_STATUS.READY_FOR_PICKUP
+      ].includes(appointment.status);
+    }
+
     function isBayUnavailable(bay, appointmentAt, excludeAppointmentId = "") {
       return state.appointments.some((appointment) =>
         appointment.id !== excludeAppointmentId &&
-        [APPOINTMENT_STATUS.ASSIGNED, APPOINTMENT_STATUS.IN_PROGRESS, APPOINTMENT_STATUS.WAITING_FOR_PARTS, APPOINTMENT_STATUS.WAITING_FOR_APPROVAL, APPOINTMENT_STATUS.ON_HOLD].includes(appointment.status) &&
+        appointmentBlocksBay(appointment) &&
         appointment.bay === bay &&
         appointment.appointmentAt === appointmentAt
       );
+    }
+
+    function isOperatorDoubleBooked(operatorName, appointmentAt, excludeAppointmentId = "") {
+      return state.appointments.some((appointment) =>
+        appointment.id !== excludeAppointmentId &&
+        appointmentBlocksOperator(appointment) &&
+        appointment.assignedOperator === operatorName &&
+        appointment.appointmentAt === appointmentAt
+      );
+    }
+
+    function getAssignmentConflictSummary(appointment) {
+      const conflicts = [];
+      if (appointment.assignedOperator && isOperatorDoubleBooked(appointment.assignedOperator, appointment.appointmentAt, appointment.id)) {
+        conflicts.push(`${appointment.assignedOperator} is already booked at this time`);
+      }
+      if (appointment.bay && isBayUnavailable(appointment.bay, appointment.appointmentAt, appointment.id)) {
+        conflicts.push(`${appointment.bay} is already occupied at this time`);
+      }
+      return conflicts;
     }
 
     function isOperatorUser() {
@@ -821,9 +1368,15 @@
       return auth?.role === "operator";
     }
 
+    function getTechnicianProfile(technicianName) {
+      return TECHNICIAN_PROFILES[technicianName] || {
+        skills: SERVICE_CATALOG.map((service) => service.name),
+        maxConcurrentJobs: 2
+      };
+    }
+
     function isTechnicianSkilledForService(technicianName, serviceType) {
-      const profile = TECHNICIAN_PROFILES[technicianName];
-      if (!profile) return false;
+      const profile = getTechnicianProfile(technicianName);
       return profile.skills.includes(serviceType) || serviceType === "General Repair";
     }
 
@@ -836,13 +1389,14 @@
     }
 
     function isTechnicianAvailable(technicianName, serviceType, excludeAppointmentId = "") {
-      const profile = TECHNICIAN_PROFILES[technicianName];
-      if (!profile) {
-        window.alert("Choose a listed technician.");
-        return false;
-      }
+      const profile = getTechnicianProfile(technicianName);
       if (!isTechnicianSkilledForService(technicianName, serviceType)) {
         window.alert(`${technicianName} is not assigned to that service type.`);
+        return false;
+      }
+      const appointment = state.appointments.find((item) => item.id === excludeAppointmentId);
+      if (appointment && isOperatorDoubleBooked(technicianName, appointment.appointmentAt, excludeAppointmentId)) {
+        window.alert(`${technicianName} already has another appointment scheduled at ${formatDate(appointment.appointmentAt)}.`);
         return false;
       }
       if (getTechnicianActiveJobs(technicianName, excludeAppointmentId).length >= profile.maxConcurrentJobs) {
@@ -905,6 +1459,7 @@
       elements.adminBookingServiceSelect.innerHTML = SERVICE_CATALOG
         .map((service) => `<option value="${service.name}">${service.name}</option>`)
         .join("");
+      updateAdminBookingValidationState();
     }
 
     function createWorkOrderFromAppointment(appointment) {
@@ -927,7 +1482,15 @@
         readyForPickupAt: "",
         completedAt: "",
         verifiedAt: "",
-        reviewRequestedAt: ""
+        reviewRequestedAt: "",
+        invoice: {
+          laborCost: 0,
+          otherCost: 0,
+          otherDescription: "",
+          paid: false,
+          paidAt: "",
+          paidBy: ""
+        }
       };
 
       state.workOrders.unshift(workOrder);
@@ -942,10 +1505,22 @@
       if (nextFaults === null) return;
 
       const partsInput = window.prompt(
-        "Optional: add used parts as a comma-separated list matching inventory names.",
+        "Optional: add used parts as comma-separated SKU entries. Examples: 352777, 352777:2, M1-5W30-5QT:1",
         ""
       );
       if (partsInput === null) return;
+
+      const normalizedParts = partsInput
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      if (normalizedParts.length) {
+        const consumed = consumeInventoryForWorkOrder(workOrderId, normalizedParts);
+        if (!consumed) {
+          return;
+        }
+      }
 
       state.workOrders = state.workOrders.map((item) =>
         item.id === workOrderId
@@ -967,16 +1542,7 @@
         );
       }
 
-      const normalizedParts = partsInput
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-
       if (normalizedParts.length) {
-        const consumed = consumeInventoryForWorkOrder(workOrderId, normalizedParts.join(", "));
-        if (!consumed) {
-          return;
-        }
         syncAppointmentInventorySummary(workOrder.appointmentId);
       }
 
@@ -984,38 +1550,70 @@
       render();
     }
 
-    function consumeInventoryForWorkOrder(workOrderId, inventoryUsedInput) {
-      const itemNames = inventoryUsedInput
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+    function consumeInventoryForWorkOrder(workOrderId, skuEntries) {
+      const requestedParts = [];
 
-      const workOrderParts = [];
-      for (const itemName of itemNames) {
-        const matchedPart = state.inventory.find((part) => part.name.toLowerCase() === itemName.toLowerCase());
+      for (const skuEntry of skuEntries) {
+        const [rawSku, rawQuantity] = skuEntry.split(":").map((item) => item.trim());
+        const normalizedSku = String(rawSku || "").toUpperCase();
+        const quantity = rawQuantity ? Number(rawQuantity) : 1;
+
+        if (!normalizedSku) {
+          window.alert("Enter a valid SKU when logging used inventory.");
+          return false;
+        }
+
+        if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
+          window.alert(`Enter a valid whole-number quantity for SKU ${normalizedSku}.`);
+          return false;
+        }
+
+        const matchedPart = state.inventory.find((part) => String(part.sku || "").toUpperCase() === normalizedSku);
         if (!matchedPart) {
-          window.alert(`Inventory item "${itemName}" was not found in the catalog.`);
+          window.alert(`Inventory item with SKU "${normalizedSku}" was not found in the catalog.`);
           return false;
         }
-        if (matchedPart.quantity <= 0) {
-          window.alert(`Inventory item "${matchedPart.name}" is out of stock.`);
-          return false;
+
+        const existingRequest = requestedParts.find((item) => item.part.id === matchedPart.id);
+        if (existingRequest) {
+          existingRequest.quantity += quantity;
+        } else {
+          requestedParts.push({ part: matchedPart, quantity });
         }
-        workOrderParts.push({ part: matchedPart, quantity: 1 });
       }
 
-      workOrderParts.forEach(({ part, quantity }) => {
+      for (const { part, quantity } of requestedParts) {
+        if (part.quantity < quantity) {
+          window.alert(`Only ${part.quantity} of ${part.name} (SKU ${part.sku}) are available.`);
+          return false;
+        }
+      }
+
+      requestedParts.forEach(({ part, quantity }) => {
         state.inventory = state.inventory.map((inventoryPart) =>
           inventoryPart.id === part.id
             ? { ...inventoryPart, quantity: inventoryPart.quantity - quantity }
             : inventoryPart
         );
-        state.workOrderParts.push({
-          id: crypto.randomUUID(),
-          workOrderId,
-          partId: part.id,
-          quantity
-        });
+
+        const existingPartLink = state.workOrderParts.find((item) => item.workOrderId === workOrderId && item.partId === part.id);
+        if (existingPartLink) {
+          state.workOrderParts = state.workOrderParts.map((item) =>
+            item.workOrderId === workOrderId && item.partId === part.id
+              ? { ...item, quantity: item.quantity + quantity, unitPrice: item.unitPrice || part.price, partName: item.partName || part.name, sku: item.sku || part.sku }
+              : item
+          );
+        } else {
+          state.workOrderParts.push({
+            id: crypto.randomUUID(),
+            workOrderId,
+            partId: part.id,
+            quantity,
+            unitPrice: part.price,
+            partName: part.name,
+            sku: part.sku
+          });
+        }
       });
 
       return true;
@@ -1031,7 +1629,9 @@
         .filter((item) => item.workOrderId === workOrder.id)
         .map((item) => {
           const part = state.inventory.find((inventoryPart) => inventoryPart.id === item.partId);
-          return part ? `${part.name} x${item.quantity}` : "";
+          const partName = item.partName || part?.name;
+          const sku = item.sku || part?.sku;
+          return partName && sku ? `${partName} (SKU ${sku}) x${item.quantity}` : "";
         })
         .filter(Boolean)
         .join(", ");
@@ -1074,7 +1674,7 @@
       if (existingPartLink) {
         state.workOrderParts = state.workOrderParts.map((item) =>
           item.workOrderId === workOrderId && item.partId === partId
-            ? { ...item, quantity: item.quantity + parsedQuantity }
+            ? { ...item, quantity: item.quantity + parsedQuantity, unitPrice: item.unitPrice || matchedPart.price, partName: item.partName || matchedPart.name, sku: item.sku || matchedPart.sku }
             : item
         );
       } else {
@@ -1082,7 +1682,10 @@
           id: crypto.randomUUID(),
           workOrderId,
           partId,
-          quantity: parsedQuantity
+          quantity: parsedQuantity,
+          unitPrice: matchedPart.price,
+          partName: matchedPart.name,
+          sku: matchedPart.sku
         });
       }
 
@@ -1090,6 +1693,256 @@
       persistState();
       render();
       return true;
+    }
+
+    function removeInventoryFromWorkOrder(workOrderId, partId) {
+      const workOrder = findWorkOrder(workOrderId);
+      if (!workOrder) return false;
+
+      const existingPartLink = state.workOrderParts.find((item) => item.workOrderId === workOrderId && item.partId === partId);
+      if (!existingPartLink) {
+        window.alert("That material is not attached to this work order.");
+        return false;
+      }
+
+      state.inventory = state.inventory.map((part) =>
+        part.id === partId
+          ? { ...part, quantity: part.quantity + Number(existingPartLink.quantity || 0) }
+          : part
+      );
+      state.workOrderParts = state.workOrderParts.filter((item) => item !== existingPartLink);
+      syncAppointmentInventorySummary(workOrder.appointmentId);
+      invoicePanelNotice = "Material removed from the invoice and returned to inventory.";
+      persistState();
+      render();
+      return true;
+    }
+
+    function saveInvoiceDraft(options = {}) {
+      if (!isAdminUser()) return false;
+
+      const workOrderId = String(options.workOrderId || elements.invoiceWorkOrderIdField?.value || selectedInvoiceWorkOrderId || "");
+      const workOrder = findWorkOrder(workOrderId);
+      if (!workOrder) {
+        window.alert("Select a work order before saving the invoice.");
+        return false;
+      }
+
+      const laborCost = Number(elements.invoiceLaborCostField?.value || 0);
+      const otherCost = Number(elements.invoiceOtherCostField?.value || 0);
+      const otherDescription = String(elements.invoiceOtherDescriptionField?.value || "").trim();
+
+      if (!Number.isFinite(laborCost) || laborCost < 0 || !Number.isFinite(otherCost) || otherCost < 0) {
+        setFormMessage(elements.invoiceMessage, "Labor and other charges must be zero or greater.");
+        window.alert("Labor and other charges must be zero or greater.");
+        return false;
+      }
+
+      const currentInvoice = getInvoiceState(workOrder);
+      state.workOrders = state.workOrders.map((item) =>
+        item.id === workOrderId
+          ? {
+              ...item,
+              invoice: {
+                ...currentInvoice,
+                laborCost,
+                otherCost,
+                otherDescription
+              }
+            }
+          : item
+      );
+
+      selectedInvoiceWorkOrderId = workOrderId;
+      persistState();
+      render();
+      setFormMessage(elements.invoiceMessage, options.message || "Invoice saved.");
+      return true;
+    }
+
+    function openInvoiceForWorkOrder(workOrderId, notice = "") {
+      const workOrder = findWorkOrder(workOrderId);
+      if (!workOrder) return;
+      selectedInvoiceWorkOrderId = workOrderId;
+      invoicePanelNotice = notice;
+      render();
+      elements.invoiceForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function markInvoicePaid() {
+      if (!isAdminUser()) return;
+
+      const saved = saveInvoiceDraft({ message: "Invoice saved before payment confirmation." });
+      if (!saved) return;
+
+      const workOrderId = String(elements.invoiceWorkOrderIdField?.value || selectedInvoiceWorkOrderId || "");
+      const workOrder = findWorkOrder(workOrderId);
+      if (!workOrder) return;
+
+      if (!confirmAdminPassword(`mark invoice ${formatRecordId("WO", workOrder.id)} as paid`)) return;
+
+      const currentInvoice = getInvoiceState(workOrder);
+      state.workOrders = state.workOrders.map((item) =>
+        item.id === workOrderId
+          ? {
+              ...item,
+              invoice: {
+                ...currentInvoice,
+                laborCost: Number(elements.invoiceLaborCostField?.value || 0),
+                otherCost: Number(elements.invoiceOtherCostField?.value || 0),
+                otherDescription: String(elements.invoiceOtherDescriptionField?.value || "").trim(),
+                paid: true,
+                paidAt: new Date().toISOString(),
+                paidBy: auth.name
+              }
+            }
+          : item
+      );
+
+      persistState();
+      render();
+      setFormMessage(elements.invoiceMessage, "Invoice marked paid. Complete Pickup is now available.");
+    }
+
+    function renderInvoicePanel() {
+      if (!isAdminUser() || !elements.invoiceSummary || !elements.invoiceMaterialList || !elements.invoiceTotals) return;
+
+      const workOrder = findWorkOrder(selectedInvoiceWorkOrderId);
+      if (!workOrder) {
+        selectedInvoiceWorkOrderId = "";
+        if (elements.invoiceWorkOrderIdField) {
+          elements.invoiceWorkOrderIdField.value = "";
+        }
+        elements.invoiceSummary.innerHTML = '<article class="empty-state">Select a verified or ready-for-pickup work order to prepare the invoice.</article>';
+        elements.invoiceMaterialList.innerHTML = "";
+        elements.invoiceTotals.innerHTML = "";
+        if (elements.invoiceMaterialSelect) {
+          elements.invoiceMaterialSelect.innerHTML = '<option value="">Select a work order first</option>';
+          elements.invoiceMaterialSelect.disabled = true;
+        }
+        if (elements.invoiceAddMaterialButton) {
+          elements.invoiceAddMaterialButton.disabled = true;
+        }
+        if (elements.invoiceSaveButton) {
+          elements.invoiceSaveButton.disabled = true;
+        }
+        if (elements.invoiceMarkPaidButton) {
+          elements.invoiceMarkPaidButton.disabled = true;
+          elements.invoiceMarkPaidButton.textContent = "Mark Paid";
+        }
+        if (elements.invoiceMaterialQuantityField) {
+          elements.invoiceMaterialQuantityField.value = "1";
+        }
+        if (elements.invoiceLaborCostField) {
+          elements.invoiceLaborCostField.value = "";
+        }
+        if (elements.invoiceOtherCostField) {
+          elements.invoiceOtherCostField.value = "";
+        }
+        if (elements.invoiceOtherDescriptionField) {
+          elements.invoiceOtherDescriptionField.value = "";
+        }
+        clearFormMessage(elements.invoiceMessage);
+        return;
+      }
+
+      const customer = findCustomer(workOrder.customerId);
+      const vehicle = findVehicle(workOrder.vehicleId);
+      const appointment = workOrder.appointmentId ? state.appointments.find((item) => item.id === workOrder.appointmentId) : null;
+      const { materials, materialsTotal, laborCost, otherCost, grandTotal, invoice } = getWorkOrderInvoiceTotals(workOrder);
+      const availableParts = state.inventory.filter((part) => part.quantity > 0);
+
+      if (elements.invoiceWorkOrderIdField) {
+        elements.invoiceWorkOrderIdField.value = workOrder.id;
+      }
+      if (elements.invoiceLaborCostField) {
+        elements.invoiceLaborCostField.value = String(laborCost || "");
+      }
+      if (elements.invoiceOtherCostField) {
+        elements.invoiceOtherCostField.value = String(otherCost || "");
+      }
+      if (elements.invoiceOtherDescriptionField) {
+        elements.invoiceOtherDescriptionField.value = invoice.otherDescription || "";
+      }
+      if (elements.invoiceMaterialSelect) {
+        elements.invoiceMaterialSelect.innerHTML = availableParts.length
+          ? availableParts.map((part) => `<option value="${part.id}">${part.name} (SKU ${part.sku}) · ${part.quantity} in stock · ${formatCurrency(part.price)}</option>`).join("")
+          : '<option value="">No stocked materials available</option>';
+        elements.invoiceMaterialSelect.disabled = availableParts.length === 0;
+      }
+      if (elements.invoiceAddMaterialButton) {
+        elements.invoiceAddMaterialButton.disabled = availableParts.length === 0;
+      }
+      if (elements.invoiceSaveButton) {
+        elements.invoiceSaveButton.disabled = false;
+      }
+      if (elements.invoiceMarkPaidButton) {
+        elements.invoiceMarkPaidButton.textContent = invoice.paid ? "Payment Recorded" : "Mark Paid";
+        elements.invoiceMarkPaidButton.disabled = invoice.paid;
+      }
+
+      elements.invoiceSummary.innerHTML = `
+        <article class="list-card">
+          <h4>${workOrder.servicesPerformed || "Service work"}</h4>
+          <p>${customer?.name || "Unknown customer"} · ${getVehicleDisplayName(vehicle)}</p>
+          <div class="stack-meta">
+            <span class="pill">${formatRecordId("WO", workOrder.id)}</span>
+            <span class="pill">${formatRecordId("APT", workOrder.appointmentId)}</span>
+            <span class="pill">${workOrder.status}</span>
+            <span class="pill">${invoice.paid ? `Paid ${formatDate(invoice.paidAt)}` : "Unpaid"}</span>
+          </div>
+          <div class="stack-meta">
+            <span class="pill">${appointment?.assignedOperator || workOrder.assignedTechnician || "Operator not assigned"}</span>
+            <span class="pill">${appointment?.bay || "Bay not assigned"}</span>
+            <span class="pill">${appointment ? formatDate(appointment.appointmentAt) : "No appointment time"}</span>
+          </div>
+          <p>${workOrder.faults || appointment?.faults || "No work notes recorded yet."}</p>
+        </article>
+      `;
+
+      elements.invoiceMaterialList.innerHTML = materials.length
+        ? materials.map((item) => `
+          <article class="list-card">
+            <h4>${item.displayName}</h4>
+            <div class="stack-meta">
+              <span class="pill">SKU ${item.sku || "N/A"}</span>
+              <span class="pill">Qty ${item.quantity}</span>
+              <span class="pill">${formatCurrency(item.unitPrice)} each</span>
+              <span class="pill">${formatCurrency(item.lineTotal)}</span>
+            </div>
+            <div class="list-actions">
+              <button type="button" class="secondary-btn" data-remove-invoice-material="${item.partId}">Remove Material</button>
+            </div>
+          </article>
+        `).join("")
+        : '<article class="empty-state">No billed materials yet. Add materials from inventory if they were used on this job.</article>';
+
+      elements.invoiceTotals.innerHTML = `
+        <article class="list-card">
+          <h4>Invoice Totals</h4>
+          <div class="stack-meta">
+            <span class="pill">Labor ${formatCurrency(laborCost)}</span>
+            <span class="pill">Materials ${formatCurrency(materialsTotal)}</span>
+            <span class="pill">Other ${formatCurrency(otherCost)}</span>
+            <span class="pill">Grand Total ${formatCurrency(grandTotal)}</span>
+          </div>
+          <p>${invoice.otherDescription || "No other-charge note added."}</p>
+          <p>${invoice.paid ? `Paid by ${invoice.paidBy || "Admin"} on ${formatDate(invoice.paidAt)}.` : "Payment has not been recorded yet."}</p>
+        </article>
+      `;
+
+      elements.invoiceMaterialList.querySelectorAll("[data-remove-invoice-material]").forEach((button) => {
+        button.addEventListener("click", () => removeInventoryFromWorkOrder(workOrder.id, button.dataset.removeInvoiceMaterial));
+      });
+
+      if (invoicePanelNotice) {
+        setFormMessage(elements.invoiceMessage, invoicePanelNotice);
+        invoicePanelNotice = "";
+      } else if (!invoice.paid) {
+        setFormMessage(elements.invoiceMessage, "Review labor, materials, and other charges before marking this invoice paid.");
+      } else {
+        setFormMessage(elements.invoiceMessage, "Payment has been recorded. Complete Pickup is now unlocked.");
+      }
     }
 
     function updateWorkOrderStatus(workOrderId, nextStatus) {
@@ -1169,6 +2022,16 @@
         return;
       }
 
+      if (!isOnTheHour(parsedDate)) {
+        window.alert("Appointments must stay scheduled on the hour.");
+        return;
+      }
+
+      if (!isWithinBusinessHours(parsedDate)) {
+        window.alert("Appointments must stay within business hours.");
+        return;
+      }
+
       const nextIso = parsedDate.toISOString();
       if (hasDuplicateAppointment(appointment.vehicleId, nextIso, appointment.id)) {
         window.alert("This update would create a duplicate appointment for the same vehicle at the same time.");
@@ -1177,6 +2040,11 @@
 
       if (appointment.status !== APPOINTMENT_STATUS.PENDING_APPROVAL && appointment.status !== APPOINTMENT_STATUS.REJECTED && appointment.bay && isBayUnavailable(appointment.bay, nextIso, appointment.id)) {
         window.alert(`${appointment.bay} is unavailable for the updated time.`);
+        return;
+      }
+
+      if (appointment.status !== APPOINTMENT_STATUS.PENDING_APPROVAL && appointment.status !== APPOINTMENT_STATUS.REJECTED && appointment.assignedOperator && isOperatorDoubleBooked(appointment.assignedOperator, nextIso, appointment.id)) {
+        window.alert(`${appointment.assignedOperator} already has another appointment at the updated time. Reassign the operator or choose a different time.`);
         return;
       }
 
@@ -1237,6 +2105,7 @@
         ? vehicles.map((vehicle) => `<option value="${vehicle.id}">${getVehicleDisplayName(vehicle)}</option>`).join("")
         : '<option value="">Add a vehicle first</option>';
       elements.customerBookingVehicleSelect.disabled = vehicles.length === 0;
+      updateCustomerBookingValidationState();
     }
 
     function populateCustomerBookingServiceOptions() {
@@ -1244,41 +2113,52 @@
       elements.customerBookingServiceSelect.innerHTML = SERVICE_CATALOG
         .map((service) => `<option value="${service.name}">${service.name}</option>`)
         .join("");
+      updateCustomerBookingValidationState();
     }
 
-    function validateCustomerVehicleForm() {
+    function validateCustomerVehicleForm({ interactive = true } = {}) {
       const year = Number(elements.customerVehicleYearField?.value);
       const make = elements.customerVehicleMakeField?.value.trim();
       const model = elements.customerVehicleModelField?.value.trim();
       const mileage = Number(elements.customerVehicleMileageField?.value);
 
       if (!elements.customerVehicleVin?.value.trim() || !make || !model || elements.customerVehicleYearField?.value.trim() === "" || elements.customerVehicleMileageField?.value.trim() === "") {
-        setFormMessage(elements.customerVehicleFormMessage, "Add all required vehicle details before saving.");
-        window.alert("Please complete all required vehicle fields.");
+        if (interactive) {
+          setFormMessage(elements.customerVehicleFormMessage, "Add all required vehicle details before saving.");
+          window.alert("Please complete all required vehicle fields.");
+        }
         return false;
       }
 
       if (!validateCustomerPortalVIN()) {
-        setFormMessage(elements.customerVehicleFormMessage, "Enter a valid VIN before saving.");
-        window.alert("Enter a valid VIN before saving.");
+        if (interactive) {
+          setFormMessage(elements.customerVehicleFormMessage, "Enter a valid VIN before saving.");
+          window.alert("Enter a valid VIN before saving.");
+        }
         return false;
       }
 
       if (!Number.isInteger(year) || year < 1900 || year > 2099) {
-        setFormMessage(elements.customerVehicleFormMessage, "Enter a valid model year.");
-        window.alert("Enter a valid model year.");
+        if (interactive) {
+          setFormMessage(elements.customerVehicleFormMessage, "Enter a valid model year.");
+          window.alert("Enter a valid model year.");
+        }
         return false;
       }
 
       if (!Number.isFinite(mileage) || mileage < 0) {
         elements.customerVehicleMileageField?.classList.add("is-invalid");
-        setFormMessage(elements.customerVehicleFormMessage, "Mileage must be a valid positive value.");
-        window.alert("Mileage must be a valid positive value.");
+        if (interactive) {
+          setFormMessage(elements.customerVehicleFormMessage, "Mileage must be a valid positive value.");
+          window.alert("Mileage must be a valid positive value.");
+        }
         return false;
       }
 
       elements.customerVehicleMileageField?.classList.remove("is-invalid");
-      clearFormMessage(elements.customerVehicleFormMessage);
+      if (interactive) {
+        clearFormMessage(elements.customerVehicleFormMessage);
+      }
       return true;
     }
 
@@ -1298,73 +2178,109 @@
       });
     }
 
+    function promptAssignmentValues(appointment) {
+      const availableOperators = getOperatorNames();
+      const operatorPrompt = `Assign operator for this appointment. Available: ${availableOperators.join(", ")}`;
+      const nextOperator = window.prompt(operatorPrompt, appointment.assignedOperator || availableOperators[0] || "");
+      if (nextOperator === null) return null;
+
+      const trimmedOperator = nextOperator.trim();
+      if (!trimmedOperator) {
+        window.alert("Assignment canceled. An operator assignment is required.");
+        return null;
+      }
+
+      const bayPrompt = `Assign bay for this appointment. Available bays: ${BAYS.join(", ")}`;
+      const nextBay = window.prompt(bayPrompt, appointment.bay || BAYS[0]);
+      if (nextBay === null) return null;
+
+      const trimmedBay = nextBay.trim();
+      if (!BAYS.includes(trimmedBay)) {
+        window.alert(`Assignment canceled. Choose one of these bays: ${BAYS.join(", ")}.`);
+        return null;
+      }
+
+      const durationResponse = window.prompt("Estimated duration in hours.", String(appointment.estimatedDurationHours || 1));
+      if (durationResponse === null) return null;
+      const estimatedDurationHours = Number(durationResponse);
+      if (!Number.isFinite(estimatedDurationHours) || estimatedDurationHours <= 0) {
+        window.alert("Enter a valid estimated duration in hours.");
+        return null;
+      }
+
+      return {
+        assignedOperator: trimmedOperator,
+        bay: trimmedBay,
+        estimatedDurationHours
+      };
+    }
+
+    function applyAppointmentAssignment(appointmentId, assignmentValues) {
+      const appointment = state.appointments.find((item) => item.id === appointmentId);
+      if (!appointment) return false;
+
+      if (hasDuplicateAppointment(appointment.vehicleId, appointment.appointmentAt, appointment.id)) {
+        window.alert("This booking conflicts with an existing appointment for the same vehicle at the same time.");
+        return false;
+      }
+
+      if (isBayUnavailable(assignmentValues.bay, appointment.appointmentAt, appointment.id)) {
+        window.alert(`${assignmentValues.bay} is unavailable for that appointment time. Choose another bay.`);
+        return false;
+      }
+
+      if (!isTechnicianAvailable(assignmentValues.assignedOperator, appointment.serviceType, appointment.id)) {
+        return false;
+      }
+
+      state.appointments = state.appointments.map((item) =>
+        item.id === appointmentId
+          ? {
+              ...item,
+              approved: true,
+              approvedByAdmin: auth.name,
+              assignedOperator: assignmentValues.assignedOperator,
+              bay: assignmentValues.bay,
+              estimatedDurationHours: assignmentValues.estimatedDurationHours,
+              status: item.status === APPOINTMENT_STATUS.PENDING_APPROVAL ? APPOINTMENT_STATUS.ASSIGNED : item.status
+            }
+          : item
+      );
+
+      const updatedAppointment = state.appointments.find((item) => item.id === appointmentId);
+      const workOrder = createWorkOrderFromAppointment(updatedAppointment);
+      if (workOrder) {
+        state.workOrders = state.workOrders.map((item) =>
+          item.id === workOrder.id
+            ? { ...item, assignedTechnician: assignmentValues.assignedOperator }
+            : item
+        );
+      }
+
+      persistState();
+      render();
+      return true;
+    }
+
     function approveAppointment(appointmentId) {
       if (auth?.role !== "admin") return;
 
       const appointment = state.appointments.find((item) => item.id === appointmentId);
       if (!appointment) return;
+      const assignmentValues = promptAssignmentValues(appointment);
+      if (!assignmentValues) return;
+      applyAppointmentAssignment(appointmentId, assignmentValues);
+    }
 
-      const operatorPrompt = `Assign operator for this appointment. Available: ${OPERATORS.join(", ")}`;
-      const nextOperator = window.prompt(operatorPrompt, appointment.assignedOperator || OPERATORS[0]);
-      if (nextOperator === null) return;
+    function reassignAppointment(appointmentId) {
+      if (!isAdminUser()) return;
 
-      const trimmedOperator = nextOperator.trim();
-      if (!trimmedOperator) {
-        window.alert("Approval canceled. An operator assignment is required.");
-        return;
-      }
+      const appointment = state.appointments.find((item) => item.id === appointmentId);
+      if (!appointment) return;
 
-      const bayPrompt = `Assign bay for this appointment. Available bays: ${BAYS.join(", ")}`;
-      const nextBay = window.prompt(bayPrompt, appointment.bay || BAYS[0]);
-      if (nextBay === null) return;
-
-      const trimmedBay = nextBay.trim();
-      if (!BAYS.includes(trimmedBay)) {
-        window.alert(`Approval canceled. Choose one of these bays: ${BAYS.join(", ")}.`);
-        return;
-      }
-
-      const durationResponse = window.prompt("Estimated duration in hours.", String(appointment.estimatedDurationHours || 1));
-      if (durationResponse === null) return;
-      const estimatedDurationHours = Number(durationResponse);
-      if (!Number.isFinite(estimatedDurationHours) || estimatedDurationHours <= 0) {
-        window.alert("Enter a valid estimated duration in hours.");
-        return;
-      }
-
-      if (hasDuplicateAppointment(appointment.vehicleId, appointment.appointmentAt, appointment.id)) {
-        window.alert("This booking conflicts with an existing appointment for the same vehicle at the same time.");
-        return;
-      }
-
-      if (isBayUnavailable(trimmedBay, appointment.appointmentAt, appointment.id)) {
-        window.alert(`${trimmedBay} is unavailable for that appointment time. Choose another bay.`);
-        return;
-      }
-
-      if (!isTechnicianAvailable(trimmedOperator, appointment.serviceType, appointment.id)) {
-        return;
-      }
-
-      state.appointments = state.appointments.map((appointment) =>
-        appointment.id === appointmentId
-          ? {
-              ...appointment,
-              approved: true,
-              approvedByAdmin: auth.name,
-              assignedOperator: trimmedOperator,
-              bay: trimmedBay,
-              estimatedDurationHours,
-              status: APPOINTMENT_STATUS.ASSIGNED
-            }
-          : appointment
-      );
-      createWorkOrderFromAppointment({
-        ...appointment,
-        assignedOperator: trimmedOperator
-      });
-      persistState();
-      render();
+      const assignmentValues = promptAssignmentValues(appointment);
+      if (!assignmentValues) return;
+      applyAppointmentAssignment(appointmentId, assignmentValues);
     }
 
     function rejectAppointment(appointmentId) {
@@ -1402,8 +2318,10 @@
           const customer = findCustomer(appointment.customerId);
           const vehicle = findVehicle(appointment.vehicleId);
           const workOrder = findWorkOrderByAppointment(appointment.id);
+          const invoice = workOrder ? getInvoiceState(workOrder) : null;
           const appointmentCode = formatRecordId("APT", appointment.id);
           const workOrderCode = workOrder ? formatRecordId("WO", workOrder.id) : "WO-NOT-CREATED";
+          const assignmentConflicts = getAssignmentConflictSummary(appointment);
 
           return `
             <article class="list-card">
@@ -1419,14 +2337,18 @@
                 <span class="pill">${appointment.assignedOperator || "Operator not assigned"}</span>
                 <span class="pill">${appointment.bay || "Bay not assigned"}</span>
                 <span class="pill">${appointment.notificationSentAt ? "Customer notified" : "Notification pending"}</span>
+                ${invoice ? `<span class="pill">${invoice.paid ? "Paid" : "Payment pending"}</span>` : ""}
               </div>
               <p>${appointment.bookingNote || "No booking note."}</p>
+              ${assignmentConflicts.length ? `<p><strong>Scheduling issue:</strong> ${assignmentConflicts.join(" and ")}.</p>` : ""}
               <div class="list-actions">
                 ${appointment.status === APPOINTMENT_STATUS.PENDING_APPROVAL ? `<button type="button" class="primary-btn" data-assign-appointment="${appointment.id}">Assign / Create Work Order</button>` : ""}
                 ${appointment.status === APPOINTMENT_STATUS.PENDING_APPROVAL ? `<button type="button" class="danger-btn" data-reject-appointment="${appointment.id}">Reject</button>` : ""}
+                ${appointment.status !== APPOINTMENT_STATUS.COMPLETED && appointment.status !== APPOINTMENT_STATUS.REJECTED ? `<button type="button" class="secondary-btn" data-reassign-appointment="${appointment.id}">Reassign Bay / Operator</button>` : ""}
                 ${workOrder && workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED ? `<button type="button" class="secondary-btn" data-verify-work="${workOrder.id}">Review Work Order</button>` : ""}
                 ${workOrder && workOrder.status === WORK_ORDER_STATUS.VERIFIED ? `<button type="button" class="primary-btn" data-ready-pickup="${workOrder.id}">Notify Ready for Pickup / Payment</button>` : ""}
-                ${workOrder && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP ? `<button type="button" class="secondary-btn" data-complete-job="${workOrder.id}">Complete Pickup</button>` : ""}
+                ${workOrder && [WORK_ORDER_STATUS.VERIFIED, WORK_ORDER_STATUS.READY_FOR_PICKUP].includes(workOrder.status) ? `<button type="button" class="secondary-btn" data-open-invoice="${workOrder.id}">${invoice?.paid ? "View Invoice" : "Open Invoice / Collect Payment"}</button>` : ""}
+                ${workOrder && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP && invoice?.paid ? `<button type="button" class="secondary-btn" data-complete-job="${workOrder.id}">Complete Pickup</button>` : ""}
               </div>
             </article>
           `;
@@ -1437,6 +2359,9 @@
       elements.appointmentQueueList.querySelectorAll("[data-assign-appointment]").forEach((button) => {
         button.addEventListener("click", () => approveAppointment(button.dataset.assignAppointment));
       });
+      elements.appointmentQueueList.querySelectorAll("[data-reassign-appointment]").forEach((button) => {
+        button.addEventListener("click", () => reassignAppointment(button.dataset.reassignAppointment));
+      });
       elements.appointmentQueueList.querySelectorAll("[data-reject-appointment]").forEach((button) => {
         button.addEventListener("click", () => rejectAppointment(button.dataset.rejectAppointment));
       });
@@ -1445,6 +2370,9 @@
       });
       elements.appointmentQueueList.querySelectorAll("[data-ready-pickup]").forEach((button) => {
         button.addEventListener("click", () => adminAdvanceWorkOrder(button.dataset.readyPickup, WORK_ORDER_STATUS.READY_FOR_PICKUP));
+      });
+      elements.appointmentQueueList.querySelectorAll("[data-open-invoice]").forEach((button) => {
+        button.addEventListener("click", () => openInvoiceForWorkOrder(button.dataset.openInvoice));
       });
       elements.appointmentQueueList.querySelectorAll("[data-complete-job]").forEach((button) => {
         button.addEventListener("click", () => adminAdvanceWorkOrder(button.dataset.completeJob, WORK_ORDER_STATUS.COMPLETED));
@@ -1542,6 +2470,15 @@
         }
       }
 
+      if (nextStatus === WORK_ORDER_STATUS.COMPLETED) {
+        const invoice = getInvoiceState(workOrder);
+        if (!invoice.paid) {
+          openInvoiceForWorkOrder(workOrder.id, "Payment is required before pickup can be completed. Review the invoice and mark it paid first.");
+          window.alert("This work order has not been paid yet. Complete the invoice and mark it paid before completing pickup.");
+          return;
+        }
+      }
+
       const timestamp = new Date().toISOString();
       state.workOrders = state.workOrders.map((item) =>
         item.id === workOrderId
@@ -1635,6 +2572,20 @@
       return state.users || [];
     }
 
+    function upsertOperatorUser(operatorRecord) {
+      const existingUser = state.users.find((user) => user.id === operatorRecord.id && user.role === "operator");
+      const nextUser = {
+        id: existingUser?.id || operatorRecord.id || `operator-${crypto.randomUUID()}`,
+        role: "operator",
+        email: operatorRecord.email.toLowerCase(),
+        passwordHash: existingUser?.passwordHash || DEMO_PASSWORD_HASHES.operator,
+        name: operatorRecord.name
+      };
+      state.users = existingUser
+        ? state.users.map((user) => user.id === existingUser.id ? nextUser : user)
+        : [...state.users, nextUser];
+    }
+
     function upsertCustomerUser(customer) {
       const existingUser = state.users.find((user) => user.customerId === customer.id && user.role === "customer");
       const nextUser = {
@@ -1650,65 +2601,69 @@
         : [...state.users, nextUser];
     }
 
+    function resetOperatorPassword(operatorId) {
+      const operator = getOperatorUsers().find((user) => user.id === operatorId);
+      if (!operator) return;
+      const resetPassword = DEFAULT_OPERATOR_PASSWORD;
+
+      const existingOperatorUser = state.users.find((user) => user.id === operatorId && user.role === "operator");
+      if (existingOperatorUser) {
+        state.users = state.users.map((user) =>
+          user.id === operatorId && user.role === "operator"
+            ? { ...user, passwordHash: hashPassword(resetPassword) }
+            : user
+        );
+      } else {
+        state.users.push({
+          id: operatorId,
+          role: "operator",
+          name: operator.name,
+          email: operator.email,
+          passwordHash: hashPassword(resetPassword)
+        });
+      }
+      persistState();
+      render();
+      setFormMessage(elements.operatorFormMessage, `Password reset successful for ${operator.name}. Default password restored: ${DEFAULT_OPERATOR_PASSWORD}`);
+      window.alert(`Password reset successful for ${operator.name}. Default password restored: ${DEFAULT_OPERATOR_PASSWORD}`);
+    }
+
     function resetCustomerPassword(customerId) {
       const customer = findCustomer(customerId);
       if (!customer) return;
+      const resetPassword = DEFAULT_CUSTOMER_PASSWORD;
 
-      const nextPassword = window.prompt(
-        `Set a temporary password for ${customer.name}. Leave the suggested value or replace it.`,
-        DEFAULT_CUSTOMER_PASSWORD
-      );
-
-      if (nextPassword === null) return;
-
-      const trimmedPassword = nextPassword.trim();
-      if (!trimmedPassword) {
-        window.alert("Password reset canceled. Enter a non-empty password.");
-        return;
+      const existingCustomerUser = state.users.find((user) => user.customerId === customerId && user.role === "customer");
+      if (existingCustomerUser) {
+        state.users = state.users.map((user) =>
+          user.customerId === customerId && user.role === "customer"
+            ? { ...user, passwordHash: hashPassword(resetPassword) }
+            : user
+        );
+      } else {
+        state.users.push({
+          id: `customer-${customerId}`,
+          role: "customer",
+          name: customer.name,
+          email: customer.email.toLowerCase(),
+          customerId,
+          passwordHash: hashPassword(resetPassword)
+        });
       }
-
-      state.users = state.users.map((user) =>
-        user.customerId === customerId && user.role === "customer"
-          ? { ...user, passwordHash: hashPassword(trimmedPassword) }
-          : user
-      );
       persistState();
-      setFormMessage(elements.customerFormMessage, `Password reset for ${customer.name}. Temporary password: ${trimmedPassword}`);
-      window.alert(`Password reset for ${customer.name}. New temporary password: ${trimmedPassword}`);
       render();
+      setFormMessage(elements.customerFormMessage, `Password reset successful for ${customer.name}. Default password restored: ${DEFAULT_CUSTOMER_PASSWORD}`);
+      window.alert(`Password reset successful for ${customer.name}. Default password restored: ${DEFAULT_CUSTOMER_PASSWORD}`);
     }
 
     function changeCustomerPassword() {
       const customer = getCurrentCustomer();
       if (!customer) return false;
 
-      const currentPassword = String(elements.customerCurrentPassword?.value || "");
       const newPassword = String(elements.customerNewPassword?.value || "").trim();
-      const confirmPassword = String(elements.customerConfirmPassword?.value || "").trim();
-      const customerUser = state.users.find((user) => user.customerId === customer.id && user.role === "customer");
-      const savedPasswordHash = customerUser?.passwordHash || DEFAULT_CUSTOMER_PASSWORD_HASH;
-
-      if (!currentPassword || !newPassword || !confirmPassword) {
-        setFormMessage(elements.customerPasswordMessage, "Complete all password fields before saving.");
-        window.alert("Please complete all password fields.");
-        return false;
-      }
-
-      if (hashPassword(currentPassword) !== savedPasswordHash) {
-        setFormMessage(elements.customerPasswordMessage, "Current password is incorrect.");
-        window.alert("Current password is incorrect.");
-        return false;
-      }
-
-      if (newPassword.length < 6) {
-        setFormMessage(elements.customerPasswordMessage, "New password must be at least 6 characters.");
-        window.alert("New password must be at least 6 characters.");
-        return false;
-      }
-
-      if (newPassword !== confirmPassword) {
-        setFormMessage(elements.customerPasswordMessage, "New password and confirmation do not match.");
-        window.alert("New password and confirmation do not match.");
+      if (!validateCustomerPasswordFields({ interactive: true })) {
+        const message = elements.customerPasswordMessage?.textContent || "Password update failed.";
+        window.alert(message);
         return false;
       }
 
@@ -1738,7 +2693,7 @@
 
       const adminUser = getAllUsers().find((user) => user.role === "admin" && user.email === auth?.email);
       if (!adminUser || adminUser.passwordHash !== hashPassword(password)) {
-        window.alert("Password confirmation failed. The delete action was canceled.");
+        window.alert("Password confirmation failed. The action was canceled.");
         return false;
       }
 
@@ -1775,6 +2730,26 @@
         localStorage.removeItem(AUTH_KEY);
       }
 
+      persistState();
+      render();
+    }
+
+    function deleteOperator(operatorId) {
+      if (!isAdminUser()) return;
+
+      const operator = getOperatorUsers().find((user) => user.id === operatorId);
+      if (!operator) return;
+
+      if (auth?.email === operator.email) {
+        window.alert("You cannot delete the operator account that is currently signed in.");
+        return;
+      }
+
+      const confirmed = window.confirm(`Delete operator ${operator.name}? Existing appointment and work-order history will keep the recorded operator name.`);
+      if (!confirmed) return;
+      if (!confirmAdminPassword(`delete operator ${operator.name}`)) return;
+
+      state.users = state.users.filter((user) => !(user.id === operatorId && user.role === "operator"));
       persistState();
       render();
     }
@@ -1875,10 +2850,11 @@
         elements.workOrderServiceSelect.value = selectedAppointment.serviceType;
       }
 
-      elements.workOrderTechnicianSelect.innerHTML = OPERATORS
+      const operatorNames = getOperatorNames();
+      elements.workOrderTechnicianSelect.innerHTML = operatorNames
         .map((operator) => `<option value="${operator}">${operator}</option>`)
         .join("");
-      if (selectedAppointment?.assignedOperator && OPERATORS.includes(selectedAppointment.assignedOperator)) {
+      if (selectedAppointment?.assignedOperator && operatorNames.includes(selectedAppointment.assignedOperator)) {
         elements.workOrderTechnicianSelect.value = selectedAppointment.assignedOperator;
       }
     }
@@ -2044,6 +3020,49 @@
       });
     }
 
+    function renderOperators() {
+      if (!elements.operatorList) return;
+      if (!isAdminUser()) {
+        elements.operatorList.innerHTML = "";
+        return;
+      }
+
+      const operators = getOperatorUsers();
+      elements.operatorList.innerHTML = renderList(
+        operators,
+        (operator) => {
+          const profile = getTechnicianProfile(operator.name);
+          return `
+            <article class="list-card">
+              <h4>${operator.name}</h4>
+              <p>${operator.email}</p>
+              <div class="stack-meta">
+                <span class="pill">Default login: ${operator.email}</span>
+                <span class="pill">Password: ${DEFAULT_OPERATOR_PASSWORD}</span>
+                <span class="pill">Capacity: ${profile?.maxConcurrentJobs || 2}</span>
+              </div>
+              <div class="list-actions">
+                <button type="button" class="secondary-btn" data-edit-operator="${operator.id}">Edit Operator</button>
+                <button type="button" class="secondary-btn" data-reset-operator-password="${operator.id}">Reset Password</button>
+                <button type="button" class="danger-btn" data-delete-operator="${operator.id}">Delete Operator</button>
+              </div>
+            </article>
+          `;
+        },
+        "No operators yet. Add an operator account for service assignments."
+      );
+
+      elements.operatorList.querySelectorAll("[data-edit-operator]").forEach((button) => {
+        button.addEventListener("click", () => startOperatorEdit(button.dataset.editOperator));
+      });
+      elements.operatorList.querySelectorAll("[data-reset-operator-password]").forEach((button) => {
+        button.addEventListener("click", () => resetOperatorPassword(button.dataset.resetOperatorPassword));
+      });
+      elements.operatorList.querySelectorAll("[data-delete-operator]").forEach((button) => {
+        button.addEventListener("click", () => deleteOperator(button.dataset.deleteOperator));
+      });
+    }
+
     function renderVehicles() {
       elements.vehicleList.innerHTML = renderList(
         state.vehicles,
@@ -2161,6 +3180,7 @@
           const customer = findCustomer(appointment.customerId);
           const vehicle = findVehicle(appointment.vehicleId);
           const workOrder = findWorkOrderByAppointment(appointment.id);
+          const invoice = workOrder ? getInvoiceState(workOrder) : null;
           const availableParts = state.inventory.filter((part) => part.quantity > 0);
           return `
             <article class="list-card">
@@ -2179,6 +3199,7 @@
               <div class="stack-meta">
                 <span class="pill">Faults: ${workOrder?.faults || appointment.faults || "None logged"}</span>
                 <span class="pill">Inventory: ${appointment.inventoryUsed || "None logged"}</span>
+                ${invoice ? `<span class="pill">${invoice.paid ? "Paid" : "Payment pending"}</span>` : ""}
               </div>
               ${workOrder && isServiceUser() ? `
                 <div class="form-grid">
@@ -2212,7 +3233,8 @@
                 ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED ? `<button type="button" class="secondary-btn" data-send-back="${workOrder.id}">Send Back</button>` : ""}
                 ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED ? `<button type="button" class="secondary-btn" data-status-verified="${workOrder.id}">Verify</button>` : ""}
                 ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.VERIFIED ? `<button type="button" class="secondary-btn" data-status-ready="${workOrder.id}">Ready for Pickup</button>` : ""}
-                ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP ? `<button type="button" class="primary-btn" data-status-completed="${workOrder.id}">Complete Pickup</button>` : ""}
+                ${workOrder && auth?.role === "admin" && [WORK_ORDER_STATUS.VERIFIED, WORK_ORDER_STATUS.READY_FOR_PICKUP].includes(workOrder.status) ? `<button type="button" class="secondary-btn" data-status-open-invoice="${workOrder.id}">${invoice?.paid ? "View Invoice" : "Open Invoice / Collect Payment"}</button>` : ""}
+                ${workOrder && auth?.role === "admin" && workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP && invoice?.paid ? `<button type="button" class="primary-btn" data-status-completed="${workOrder.id}">Complete Pickup</button>` : ""}
               </div>
             </article>
           `;
@@ -2276,6 +3298,9 @@
       elements.scheduleList.querySelectorAll("[data-status-ready]").forEach((button) => {
         button.addEventListener("click", () => adminAdvanceWorkOrder(button.dataset.statusReady, WORK_ORDER_STATUS.READY_FOR_PICKUP));
       });
+      elements.scheduleList.querySelectorAll("[data-status-open-invoice]").forEach((button) => {
+        button.addEventListener("click", () => openInvoiceForWorkOrder(button.dataset.statusOpenInvoice));
+      });
       elements.scheduleList.querySelectorAll("[data-status-completed]").forEach((button) => {
         button.addEventListener("click", () => adminAdvanceWorkOrder(button.dataset.statusCompleted, WORK_ORDER_STATUS.COMPLETED));
       });
@@ -2289,7 +3314,7 @@
       const completed = state.workOrders.filter((workOrder) => workOrder.status === WORK_ORDER_STATUS.WORK_COMPLETED);
       const readyForPickup = state.workOrders.filter((workOrder) => workOrder.status === WORK_ORDER_STATUS.READY_FOR_PICKUP);
       const lowStockParts = state.inventory.filter((part) => part.quantity <= part.reorderPoint);
-      const operatorCompletionStats = OPERATORS.map((operator) => {
+      const operatorCompletionStats = getOperatorNames().map((operator) => {
         const completedCount = state.workOrders.filter((workOrder) =>
           workOrder.assignedTechnician === operator && workOrder.status === WORK_ORDER_STATUS.COMPLETED
         ).length;
@@ -2308,10 +3333,10 @@
         ).length;
         return `${bay}: ${activeCount ? "Occupied" : "Open"}`;
       });
-      const technicianStatus = OPERATORS.map((operator) => {
-        const profile = TECHNICIAN_PROFILES[operator];
+      const technicianStatus = getOperatorNames().map((operator) => {
+        const profile = getTechnicianProfile(operator);
         const activeCount = getTechnicianActiveJobs(operator).length;
-        return `${operator}: ${activeCount}/${profile?.maxConcurrentJobs || 0} active`;
+        return `${operator}: ${activeCount}/${profile.maxConcurrentJobs} active`;
       });
 
       elements.adminStatusBoard.innerHTML = `
@@ -2405,6 +3430,19 @@
       elements.customerCancelButton.hidden = false;
       setFormMessage(elements.customerFormMessage, `Editing ${customer.name}. Save to update the record.`);
       elements.customerNameField.focus();
+    }
+
+    function startOperatorEdit(operatorId) {
+      const operator = getOperatorUsers().find((user) => user.id === operatorId);
+      if (!operator) return;
+
+      elements.operatorIdField.value = operator.id;
+      elements.operatorNameField.value = operator.name;
+      elements.operatorEmailField.value = operator.email;
+      elements.operatorSubmitButton.textContent = "Update Operator";
+      elements.operatorCancelButton.hidden = false;
+      setFormMessage(elements.operatorFormMessage, `Editing ${operator.name}. Save to update the record.`);
+      elements.operatorNameField.focus();
     }
 
     function startVehicleEdit(vehicleId) {
@@ -2557,7 +3595,7 @@
                 <span class="pill">${getDaysUntilAppointment(appointment.appointmentAt)}</span>
                 <span class="pill">${customerVisibleStatus}</span>
               </div>
-              <p>${isReady ? "Your vehicle is ready for pickup and payment." : isCompleted ? "Thank you for having business with us." : isPending ? "Your appointment request is waiting for admin approval." : isRejected ? "This request was not approved. Please review the note and book a new time if needed." : isAssigned ? "See you on your appointment." : "Your service request is in progress behind the scenes."}</p>
+              <p>${isReady ? "Your vehicle is ready for pickup and payment." : isCompleted ? "Your Vehicle is ready for pick up. Thank you for having business with us." : isPending ? "Your appointment request is waiting for admin approval." : isRejected ? "This request was not approved. Please review the note and book a new time if needed." : isAssigned ? "See you on your appointment." : "Your service request is in progress behind the scenes."}</p>
               <div class="list-actions">
                 ${canCancel ? `<button type="button" class="danger-btn" data-cancel-customer-appointment="${appointment.id}">Cancel Appointment</button>` : ""}
               </div>
@@ -2642,6 +3680,7 @@
         elements.loginMessage.textContent = "Your session expired after 30 minutes of inactivity.";
       }
       applyAuthView();
+      updateLoginValidationState();
       if (!auth) return;
 
       touchSession();
@@ -2653,16 +3692,27 @@
         renderOperatorJobs();
       }
       if (isAdminUser()) {
+        populateAdminBookingSelects();
         renderCustomers();
+        renderOperators();
         renderWorkOrders();
         renderInventory();
         renderAdminStatusBoard();
         renderAppointmentQueue();
+        renderInvoicePanel();
         renderSearchResults();
       }
       if (isCustomerUser()) {
         renderCustomerPortal();
       }
+      updateCustomerFormValidationState();
+      updateOperatorFormValidationState();
+      updateVehicleFormValidationState();
+      updateCustomerVehicleValidationState();
+      updateCustomerPasswordValidationState();
+      updateCustomerBookingValidationState();
+      updateAdminBookingValidationState();
+      updateInventoryValidationState();
     }
 
     // =============================
@@ -2696,6 +3746,7 @@
       }
 
       auth = {
+        id: matchedUser.id,
         role: matchedUser.role,
         email: matchedUser.email,
         name: matchedUser.name,
@@ -2761,8 +3812,86 @@
       resetCustomerForm();
     });
 
+    elements.operatorForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!validateOperatorForm()) return;
+
+      const formData = new FormData(event.currentTarget);
+      const operatorId = String(formData.get("id") || "");
+      const operatorRecord = {
+        id: operatorId || `operator-${crypto.randomUUID()}`,
+        role: "operator",
+        name: String(formData.get("name")).trim(),
+        email: String(formData.get("email")).trim().toLowerCase()
+      };
+
+      if (operatorId) {
+        upsertOperatorUser(operatorRecord);
+        if (auth?.id === operatorId) {
+          auth = { ...auth, name: operatorRecord.name, email: operatorRecord.email };
+          persistAuth();
+        }
+      } else {
+        upsertOperatorUser(operatorRecord);
+        setFormMessage(elements.operatorFormMessage, `Operator created. Default temporary password: ${DEFAULT_OPERATOR_PASSWORD}`);
+      }
+
+      persistState();
+      render();
+      resetOperatorForm();
+    });
+
+    elements.operatorCancelButton?.addEventListener("click", () => {
+      resetOperatorForm();
+    });
+
     elements.searchForm?.addEventListener("input", () => {
       renderSearchResults();
+    });
+
+    [elements.loginRole, elements.loginEmailField, elements.loginPasswordField].forEach((field) => {
+      field?.addEventListener("input", updateLoginValidationState);
+      field?.addEventListener("change", updateLoginValidationState);
+    });
+
+    [elements.customerNameField, elements.customerAddressField, elements.customerPhoneField, elements.customerEmailField, elements.customerLoyaltyField].forEach((field) => {
+      field?.addEventListener("input", updateCustomerFormValidationState);
+      field?.addEventListener("change", updateCustomerFormValidationState);
+    });
+
+    [elements.operatorNameField, elements.operatorEmailField].forEach((field) => {
+      field?.addEventListener("input", updateOperatorFormValidationState);
+      field?.addEventListener("change", updateOperatorFormValidationState);
+    });
+
+    [elements.customerCurrentPassword, elements.customerNewPassword, elements.customerConfirmPassword].forEach((field) => {
+      field?.addEventListener("input", updateCustomerPasswordValidationState);
+      field?.addEventListener("change", updateCustomerPasswordValidationState);
+    });
+
+    [elements.customerBookingVehicleSelect, elements.customerBookingServiceSelect, elements.customerAppointmentAt].forEach((field) => {
+      field?.addEventListener("input", updateCustomerBookingValidationState);
+      field?.addEventListener("change", updateCustomerBookingValidationState);
+    });
+
+    [elements.adminBookingCustomerSelect, elements.adminBookingVehicleSelect, elements.adminBookingServiceSelect, elements.adminAppointmentAt].forEach((field) => {
+      field?.addEventListener("input", updateAdminBookingValidationState);
+      field?.addEventListener("change", updateAdminBookingValidationState);
+    });
+
+    [elements.inventoryNameField, elements.inventorySkuField, elements.inventoryQuantityField, elements.inventoryReorderField, elements.inventoryPriceField].forEach((field) => {
+      field?.addEventListener("input", updateInventoryValidationState);
+      field?.addEventListener("change", updateInventoryValidationState);
+    });
+
+    [elements.vehicleCustomerSelect, elements.vehicleYearField, elements.vehicleMakeField, elements.vehicleModelField, elements.vehicleWarrantyField, elements.vehicleCodesField].forEach((field) => {
+      field?.addEventListener("input", updateVehicleFormValidationState);
+      field?.addEventListener("change", updateVehicleFormValidationState);
+    });
+
+    [elements.customerVehicleYearField, elements.customerVehicleMakeField, elements.customerVehicleModelField, elements.customerVehicleWarrantyField, elements.customerVehicleCodesField].forEach((field) => {
+      field?.addEventListener("input", updateCustomerVehicleValidationState);
+      field?.addEventListener("change", updateCustomerVehicleValidationState);
     });
 
     ["click", "keydown", "touchstart"].forEach((eventName) => {
@@ -2839,7 +3968,15 @@
           startedAt: "",
           readyForPickupAt: "",
           completedAt: "",
-          verifiedAt: ""
+          verifiedAt: "",
+          invoice: {
+            laborCost: 0,
+            otherCost: 0,
+            otherDescription: "",
+            paid: false,
+            paidAt: "",
+            paidBy: ""
+          }
         });
         syncAppointmentStatusFromWorkOrder({ appointmentId }, WORK_ORDER_STATUS.ASSIGNED, timestamp);
         setFormMessage(elements.workOrderMessage, "Linked work order created. Use Scheduling when the operator is ready to start or complete the job.");
@@ -2897,13 +4034,47 @@
       resetInventoryForm();
     });
 
-    elements.vehicleVin.addEventListener("input", validateVINInput);
-    elements.vehicleVin.addEventListener("blur", validateVINInput);
+    elements.invoiceForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveInvoiceDraft();
+    });
+
+    elements.invoiceAddMaterialButton?.addEventListener("click", () => {
+      const workOrderId = String(elements.invoiceWorkOrderIdField?.value || selectedInvoiceWorkOrderId || "");
+      if (!workOrderId) {
+        window.alert("Select a work order before adding materials to the invoice.");
+        return;
+      }
+
+      const partId = String(elements.invoiceMaterialSelect?.value || "");
+      const quantity = String(elements.invoiceMaterialQuantityField?.value || "1");
+      if (!partId) {
+        window.alert("Choose an inventory item to add.");
+        return;
+      }
+
+      invoicePanelNotice = "Material added to the invoice from inventory.";
+      addInventoryToWorkOrder(workOrderId, partId, quantity);
+    });
+
+    elements.invoiceMarkPaidButton?.addEventListener("click", () => {
+      markInvoicePaid();
+    });
+
+    elements.vehicleVin.addEventListener("input", () => {
+      validateVINInput();
+      updateVehicleFormValidationState();
+    });
+    elements.vehicleVin.addEventListener("blur", () => {
+      validateVINInput();
+      updateVehicleFormValidationState();
+    });
     elements.vehicleMileageField.addEventListener("input", () => {
       if (Number(elements.vehicleMileageField.value) >= 0) {
         elements.vehicleMileageField.classList.remove("is-invalid");
         clearFormMessage(elements.vehicleFormMessage);
       }
+      updateVehicleFormValidationState();
     });
 
     elements.vehicleForm.addEventListener("submit", (event) => {
@@ -2943,13 +4114,20 @@
       resetVehicleForm();
     });
 
-    elements.customerVehicleVin?.addEventListener("input", validateCustomerPortalVIN);
-    elements.customerVehicleVin?.addEventListener("blur", validateCustomerPortalVIN);
+    elements.customerVehicleVin?.addEventListener("input", () => {
+      validateCustomerPortalVIN();
+      updateCustomerVehicleValidationState();
+    });
+    elements.customerVehicleVin?.addEventListener("blur", () => {
+      validateCustomerPortalVIN();
+      updateCustomerVehicleValidationState();
+    });
     elements.customerVehicleMileageField?.addEventListener("input", () => {
       if (Number(elements.customerVehicleMileageField.value) >= 0) {
         elements.customerVehicleMileageField.classList.remove("is-invalid");
         clearFormMessage(elements.customerVehicleFormMessage);
       }
+      updateCustomerVehicleValidationState();
     });
 
     elements.customerVehicleForm?.addEventListener("submit", (event) => {

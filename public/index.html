@@ -32,13 +32,13 @@
         </label>
         <label>
           Email
-          <input name="email" type="email" placeholder="admin@icloud.com" required>
+          <input name="email" id="loginEmailField" type="email" placeholder="admin@icloud.com" required>
         </label>
         <label>
           Password
-          <input name="password" type="password" placeholder="Enter password" required>
+          <input name="password" id="loginPasswordField" type="password" placeholder="Enter password" required>
         </label>
-        <button type="submit" class="primary-btn form-btn">Sign In</button>
+        <button type="submit" class="primary-btn form-btn" id="loginSubmitButton">Sign In</button>
       </form>
       <p id="loginMessage" class="login-message" aria-live="polite"></p>
     </div>
@@ -70,8 +70,11 @@
       <nav class="sidebar-nav" aria-label="Primary">
         <a href="#dashboard">Dashboard</a>
         <a href="#customers" data-admin-role>Customers</a>
+        <a href="#operators" data-admin-role>Operators</a>
         <a href="#vehicles" data-admin-only>Vehicles</a>
         <a href="#inventory" data-admin-role>Inventory</a>
+        <a href="#adminStatusBoard" data-admin-role>Status Board</a>
+        <a href="#service-ops" data-admin-role>Appoinment Queue</a>
         <a href="#customer-portal" data-customer-only>My Portal</a>
       </nav>
     </aside>
@@ -139,6 +142,14 @@
           </form>
           <div id="searchResults" class="stack-list"></div>
         </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Admin Status Board</p>
+            <h3>Ongoing, pickup, completed, inventory</h3>
+          </div>
+          <div id="adminStatusBoard" class="stack-list"></div>
+        </article>
       </section>
 
       <!-- =============================
@@ -166,7 +177,7 @@
               <input name="confirmPassword" id="customerConfirmPassword" type="password" placeholder="Confirm new password" required>
             </label>
             <p id="customerPasswordMessage" class="form-status full-span" aria-live="polite"></p>
-            <button type="submit" class="primary-btn form-btn">Change Password</button>
+            <button type="submit" class="primary-btn form-btn" id="customerPasswordSubmitButton">Change Password</button>
           </form>
           <div id="customerVehicleList" class="stack-list"></div>
         </article>
@@ -207,7 +218,7 @@
               <input name="mileage" id="customerVehicleMileageField" type="number" min="0" placeholder="42000" required>
             </label>
             <p id="customerVehicleFormMessage" class="form-status full-span" aria-live="polite"></p>
-            <button type="submit" class="primary-btn form-btn">Save My Vehicle</button>
+            <button type="submit" class="primary-btn form-btn" id="customerVehicleSubmitButton">Save My Vehicle</button>
           </form>
         </article>
 
@@ -234,7 +245,7 @@
               <input name="bookingNote" id="customerBookingNote" type="text" placeholder="Need shuttle ride or waiting room seating.">
             </label>
             <p id="customerBookingMessage" class="form-status full-span" aria-live="polite"></p>
-            <button type="submit" class="primary-btn form-btn">Book Appointment</button>
+            <button type="submit" class="primary-btn form-btn" id="customerBookingSubmitButton">Book Appointment</button>
           </form>
         </article>
 
@@ -301,6 +312,32 @@
           <div id="customerList" class="stack-list"></div>
         </article>
 
+        <article class="panel" id="operators" data-admin-role>
+          <div class="panel-heading">
+            <p class="eyebrow">Operators</p>
+            <h3>Manage operator accounts</h3>
+          </div>
+          <form id="operatorForm" class="form-grid">
+            <input type="hidden" name="id" id="operatorIdField">
+            <label>
+              Full Name
+              <input name="name" id="operatorNameField" type="text" placeholder="Alex Rivera" required>
+            </label>
+            <label>
+              Email
+              <input name="email" id="operatorEmailField" type="email" placeholder="alex.rivera@icloud.com" required>
+            </label>
+            <p id="operatorFormMessage" class="form-status full-span" aria-live="polite"></p>
+            <div class="full-span hero-actions">
+              <button type="submit" class="primary-btn" id="operatorSubmitButton">Save Operator</button>
+              <button type="button" class="secondary-btn" id="operatorCancelButton" hidden>Cancel Edit</button>
+            </div>
+          </form>
+          <div id="operatorList" class="stack-list"></div>
+        </article>
+      </section>
+
+      <section class="panel-grid forms-layout" data-admin-only>
         <article class="panel" id="vehicles">
           <div class="panel-heading">
             <p class="eyebrow">Vehicles</p>
@@ -360,13 +397,7 @@
           </div>
           <div id="vehicleList" class="stack-list"></div>
         </article>
-      </section>
 
-      <!-- =============================
-           INVENTORY MANAGEMENT
-           Admin-only parts catalog, stock, and pricing.
-           ============================= -->
-      <section class="panel-grid forms-layout" data-admin-role>
         <article class="panel" id="inventory">
           <div class="panel-heading">
             <p class="eyebrow">Inventory Management</p>
@@ -404,16 +435,6 @@
         </article>
       </section>
 
-      <section class="panel-grid forms-layout" data-admin-role>
-        <article class="panel">
-          <div class="panel-heading">
-            <p class="eyebrow">Admin Status Board</p>
-            <h3>Ongoing, pickup, completed, inventory</h3>
-          </div>
-          <div id="adminStatusBoard" class="stack-list"></div>
-        </article>
-      </section>
-
       <!-- =============================
            SERVICE OPERATIONS
            Appointment queue for admin and active jobs for operators.
@@ -422,8 +443,41 @@
         <article class="panel" data-admin-role>
           <div class="panel-heading">
             <div>
+              <p class="eyebrow">Admin Booking</p>
+              <h3>Book an appointment for a customer</h3>
+            </div>
+          </div>
+          <form id="adminBookingForm" class="form-grid">
+            <label>
+              Customer
+              <select name="customerId" id="adminBookingCustomerSelect" required></select>
+            </label>
+            <label>
+              Vehicle
+              <select name="vehicleId" id="adminBookingVehicleSelect" required></select>
+            </label>
+            <label>
+              Service Type
+              <select name="serviceType" id="adminBookingServiceSelect" required></select>
+            </label>
+            <label>
+              Appointment Time
+              <input name="appointmentAt" id="adminAppointmentAt" type="datetime-local" required>
+            </label>
+            <label class="full-span">
+              Booking Note
+              <input name="bookingNote" type="text" placeholder="Customer requested waiting room seating or drop-off instructions.">
+            </label>
+            <p id="adminBookingMessage" class="form-status full-span" aria-live="polite"></p>
+            <button type="submit" class="primary-btn form-btn" id="adminBookingSubmitButton">Book Appointment</button>
+          </form>
+        </article>
+
+        <article class="panel" data-admin-role>
+          <div class="panel-heading">
+            <div>
               <p class="eyebrow">Appointment Queue</p>
-              <h3>Aappointment Update and Modify work order</h3>
+              <h3>Appointment update and modify work order</h3>
             </div>
           </div>
           <div id="appointmentQueueList" class="stack-list"></div>
@@ -437,6 +491,51 @@
             </div>
           </div>
           <div id="operatorJobList" class="stack-list"></div>
+        </article>
+
+        <article class="panel" data-admin-role>
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Invoice Checkout</p>
+              <h3>Collect payment before completing pickup</h3>
+            </div>
+          </div>
+          <form id="invoiceForm" class="form-grid">
+            <input type="hidden" name="workOrderId" id="invoiceWorkOrderIdField">
+            <div id="invoiceSummary" class="stack-list full-span">
+              <article class="empty-state">Select a verified or ready-for-pickup work order to prepare the invoice.</article>
+            </div>
+            <label>
+              Labor Cost
+              <input name="laborCost" id="invoiceLaborCostField" type="number" min="0" step="0.01" placeholder="120.00">
+            </label>
+            <label>
+              Other Charges
+              <input name="otherCost" id="invoiceOtherCostField" type="number" min="0" step="0.01" placeholder="15.00">
+            </label>
+            <label class="full-span">
+              Other Charges Note
+              <input name="otherDescription" id="invoiceOtherDescriptionField" type="text" placeholder="Environmental fee, shop supplies, towing, or misc.">
+            </label>
+            <label>
+              Material / Inventory Item
+              <select id="invoiceMaterialSelect"></select>
+            </label>
+            <label>
+              Quantity
+              <input id="invoiceMaterialQuantityField" type="number" min="1" step="1" value="1">
+            </label>
+            <div class="full-span hero-actions">
+              <button type="button" class="secondary-btn" id="invoiceAddMaterialButton">Add Material</button>
+            </div>
+            <div id="invoiceMaterialList" class="stack-list full-span"></div>
+            <div id="invoiceTotals" class="stack-list full-span"></div>
+            <p id="invoiceMessage" class="form-status full-span" aria-live="polite"></p>
+            <div class="full-span hero-actions">
+              <button type="submit" class="primary-btn" id="invoiceSaveButton">Save Invoice</button>
+              <button type="button" class="secondary-btn" id="invoiceMarkPaidButton">Mark Paid</button>
+            </div>
+          </form>
         </article>
       </section>
     </main>
