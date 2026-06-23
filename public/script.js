@@ -268,11 +268,21 @@
       };
     }
 
+    function safeParseJSON(value, fallback = null) {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return fallback;
+      }
+      
+    }
+
+
     function loadState() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (!saved) return createDemoState();
       try {
-        return normalizeState(JSON.parse(saved));
+        return safeParseJSON(saved);
       } catch {
         return createDemoState();
       }
